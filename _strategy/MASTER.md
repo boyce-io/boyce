@@ -1,6 +1,6 @@
 # Boyce — Master Directive
 **This is the single source of truth for planning and execution.**
-**Last updated:** 2026-03-06
+**Last updated:** 2026-03-07
 **All other planning documents are subordinate to this file.**
 **Product name:** Boyce — named for [Raymond F. Boyce](https://en.wikipedia.org/wiki/Raymond_F._Boyce), co-inventor of SQL (1974)
 **Domain:** boyce.io (purchased 2026-03-04)
@@ -286,22 +286,49 @@ Adoption comes from visibility. Visibility comes from stories that make data eng
 
 See `_strategy/plans/block-1-ship-it.md` for detailed plan.
 
+#### Phase A — Engineering [COMPLETE]
 - [x] Rename codebase (package, imports, CLI, pyproject.toml, docs)
 - [x] Secure namespace (PyPI placeholder, GitHub org, domain)
 - [x] `get_schema` + `build_sql` MCP tools (host-LLM path — no Boyce LLM needed)
 - [x] `boyce-init` setup wizard (Claude Desktop, Cursor, Claude Code auto-config)
 - [x] Direct CLI (`boyce ask "..."` and `boyce chat "..."`)
 - [x] HTTP API mode (`boyce serve --http`, Starlette + Bearer auth, `/chat` endpoint)
-- [ ] Publish to PyPI under new name
-- [ ] Deploy on a live warehouse (real-world proof point)
-- [ ] Write and publish the Null Trap technical essay
-- [ ] Submit to MCP server directories (Smithery, PulseMCP)
-- [ ] Document local LLM setup (Ollama/vLLM via LiteLLM)
-- [ ] Claude Desktop, Cursor, Claude Code integration guides
-- [ ] Cline + Continue.dev guides (MCP-native VS Code extensions — already work, just need docs)
-- [ ] **VS Code extension** — thin TypeScript GUI over HTTP API, marketplace publish
+- [x] Public API exports (`from boyce import process_request, SemanticSnapshot`)
+- [x] `src` layout migration (namespace conflict eliminated)
+- [x] Client reference strip + pre-commit hook (repo is clean)
+- [x] 260 tests passing, ~10s, zero external dependencies
 
-**Gate:** `pip install boyce` works. Real queries on a real warehouse. Essay published. VS Code extension on marketplace.
+#### Phase B — Testing Sprint [ACTIVE — week of March 9]
+**Hard requirement: Will personally tests before anything is published or submitted.**
+
+*Mon-Tue March 9-10 (Claude Code prep):*
+- [ ] Integration guides written and verified (Claude Desktop, Cursor, Claude Code, Cline, Continue.dev)
+- [ ] Docker Compose for Pagila operational (`docker compose up` → Postgres + 15 tables)
+- [ ] Validation query battery written (structured capability tests + real-world prompts by persona)
+- [ ] Testing runbook ready (what to do, in what order, what to record)
+
+*Wed March 11 (Will — full day):*
+- [ ] Integration test: `boyce-init` + MCP connection across all hosts
+- [ ] Query battery: full run across all working surfaces (fixes applied live)
+
+*Thu March 12 (Will — full day):*
+- [ ] Retest fixes from Wednesday
+- [ ] Version decision (v1.0 or iterate)
+- [ ] PyPI publish (Will executes — credentials required) — if version decision is go
+
+*Fri March 13 (Will — flex):*
+- [ ] Close gaps from Wed-Thu / retest if needed
+- [ ] Begin Phase C if published Thursday
+
+#### Phase C — Amplification [AFTER PUBLISH]
+- [ ] MCP directory submissions (Smithery, PulseMCP, mcp.so, Glama)
+- [ ] Integration guides published as public docs
+- [ ] Local LLM setup guide (Ollama/vLLM via LiteLLM)
+- [ ] Content: Story 1 (adoption/IC) — clean README, 30-second demo
+- [ ] Content: Story 2 (trust/C-suite) — Null Trap technical essay
+- [ ] **VS Code extension** — thin TypeScript GUI over HTTP API, marketplace publish (Block 1b)
+
+**Gate:** Will has personally tested all surfaces. `pip install boyce` works in a clean env. Real queries produce correct results. Version decision made by Will on Thursday March 12.
 
 #### Block 1b — VS Code Extension
 See `_strategy/plans/block-1b-vscode-extension.md` for detailed plan.
@@ -414,28 +441,30 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 | Python library | `from boyce import kernel` | Custom agent integrations |
 
 ### Recent completions
+- **2026-03-07:** `src` layout migration — `boyce/boyce/` → `boyce/src/boyce/`; CWD namespace conflict eliminated; 260 tests green
+- **2026-03-07:** Client reference strip (Phases 1-3) + git history squash — repo is clean, pre-commit hook active
+- **2026-03-07:** Sprint plan locked — Phase A complete, Phase B testing sprint week of March 9
 - **2026-03-06:** Delivery surface expansion — `get_schema`, `build_sql`, `boyce-init`, Direct CLI, HTTP API (52 new tests)
 - **2026-03-05:** Full codebase rename `datashark-protocol` → `boyce` (package, module, env vars, MCP tools, docs, CI)
 - **2026-03-04:** Name confirmed as Boyce. Domain `boyce.io` purchased.
 - **2026-03-01:** Scan CLI (`boyce-scan`) implemented — 10 tests
 - **2026-03-01:** All 10 parsers operational with 177 parser tests
 - **2026-02-28:** Legacy code quarantined to `legacy_v0/`, CI/CD rewritten, docs aligned
-- **2026-02-28:** Competitive landscape research completed (`_strategy/research/`)
 
 ### Key files
 | File | Role |
 |------|------|
-| `boyce/boyce/server.py` | 8 MCP tools; `get_schema`, `build_sql`, `ask_boyce`, etc. |
-| `boyce/boyce/kernel.py` | Deterministic SQL kernel |
-| `boyce/boyce/types.py` | Protocol contract (SemanticSnapshot, Entity, FieldDef) |
-| `boyce/boyce/cli.py` | Unified CLI dispatcher (`boyce ask`, `boyce chat`, `boyce serve`) |
-| `boyce/boyce/http_api.py` | Starlette REST API with Bearer auth + `/chat` endpoint |
-| `boyce/boyce/init_wizard.py` | `boyce-init` — MCP host config wizard |
-| `boyce/boyce/scan.py` | Scan CLI (`boyce-scan`) — directory walker + auto-detect |
-| `boyce/boyce/adapters/postgres.py` | Read-only DB adapter |
-| `boyce/boyce/planner/planner.py` | NL → StructuredFilter |
-| `boyce/boyce/parsers/dbt.py` | dbt manifest + YAML parsers |
-| `boyce/boyce/parsers/detect.py` | Auto-detect + parse_from_path |
+| `boyce/src/boyce/server.py` | 8 MCP tools; `get_schema`, `build_sql`, `ask_boyce`, etc. |
+| `boyce/src/boyce/kernel.py` | Deterministic SQL kernel |
+| `boyce/src/boyce/types.py` | Protocol contract (SemanticSnapshot, Entity, FieldDef) |
+| `boyce/src/boyce/cli.py` | Unified CLI dispatcher (`boyce ask`, `boyce chat`, `boyce serve`) |
+| `boyce/src/boyce/http_api.py` | Starlette REST API with Bearer auth + `/chat` endpoint |
+| `boyce/src/boyce/init_wizard.py` | `boyce-init` — MCP host config wizard |
+| `boyce/src/boyce/scan.py` | Scan CLI (`boyce-scan`) — directory walker + auto-detect |
+| `boyce/src/boyce/adapters/postgres.py` | Read-only DB adapter |
+| `boyce/src/boyce/planner/planner.py` | NL → StructuredFilter |
+| `boyce/src/boyce/parsers/dbt.py` | dbt manifest + YAML parsers |
+| `boyce/src/boyce/parsers/detect.py` | Auto-detect + parse_from_path |
 | `boyce/tests/conftest.py` | Ensures real `mcp` package loaded before stub guards |
 | `boyce/tests/test_kernel_tools.py` | 30 tests for `get_schema`, `build_sql`, `_validate_structured_filter` |
 | `boyce/tests/test_init.py` | 22 tests for init wizard |

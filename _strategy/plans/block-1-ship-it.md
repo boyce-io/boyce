@@ -1,115 +1,130 @@
 # Plan: Block 1 — Ship It
-**Status:** Active
+**Status:** Active — Phase A complete, Phase B in progress
 **Created:** 2026-02-28
-**Timeline:** Active — days 1-10
-**Depends on:** Block 0 (naming)
+**Updated:** 2026-03-07
+**Depends on:** Block 0 (naming) — COMPLETE
 
 ## Goal
 Published on PyPI, deployed on a real warehouse, discoverable by agents and developers.
 The world can `pip install boyce` and have a working semantic protocol + safety layer
 for their database in under 5 minutes.
 
-## Prerequisites
-- Name finalized and trademark filing initiated
-- Current codebase passing all tests (verified: 15 verify_eyes + 42 pytest)
+**Hard requirement:** Will personally tests all surfaces before anything is published
+or submitted to any public directory. This is not optional polish — it is the gate.
 
 ---
 
-## Implementation Steps
+## Phase A — Engineering [COMPLETE as of 2026-03-07]
 
-### Step 1: Rename Codebase ✓ DONE
-- Rename `boyce/` directory → `boyce/`
-- Rename `boyce/` Python package → `boyce/`
-- Update all imports across the codebase
-- Update `pyproject.toml`: package name, script entry point, metadata
-- Update `server.py`: tool names and descriptions
-- Update `README.md`, `CLAUDE.md`, `MASTER.md`
-- Update `quickstart.sh`
-- Verify: `python -m boyce.server` starts, all tests pass
-- Cursor model: **Sonnet 4.6** (mechanical find-replace across files, clear spec)
+All engineering work done. No open items.
 
-### Step 2: Clean Public API Surface ✓ DONE (this session)
-- Ensure key classes/functions are importable directly:
-  ```python
-  from boyce import process_request, SemanticSnapshot, lint_redshift_compat
-  from boyce.parsers import parse_from_path, detect_source_type
-  from boyce.graph import SemanticGraph
-  ```
-- Add `__all__` exports to `__init__.py`
-- Write a "Library Usage" section in README (not just MCP server usage)
-- Cursor model: **Sonnet 4.6** (straightforward module exports)
+- [x] Rename codebase (`datashark-protocol` → `boyce`, all imports, CLI, pyproject.toml, docs)
+- [x] Secure namespace (PyPI 0.0.1 placeholder, GitHub org `boyce-io`, domain `boyce.io`)
+- [x] 8 MCP tools: `ingest_source`, `ingest_definition`, `get_schema`, `build_sql`, `solve_path`, `ask_boyce`, `query_database`, `profile_data`
+- [x] `boyce-init` setup wizard (auto-detects and configures Claude Desktop, Cursor, Claude Code)
+- [x] Direct CLI (`boyce ask "..."` and `boyce chat "..."`)
+- [x] HTTP API (`boyce serve --http`, Starlette + Bearer auth, `/chat` intent routing)
+- [x] Public API exports (`from boyce import process_request, SemanticSnapshot, lint_redshift_compat, SemanticGraph`)
+- [x] `src` layout migration (`boyce/src/boyce/`) — CWD namespace conflict eliminated
+- [x] Client reference strip + git history squash — repo is sterile
+- [x] Pre-commit hook active (blocks sensitive terms from future commits)
+- [x] 260 tests passing, ~10s, zero external dependencies
 
-### Step 3: Publish to PyPI — IN PROGRESS
-- Verify `pyproject.toml` metadata: name, version (0.1.0), description, license (MIT),
-  classifiers, Python requires (>=3.10), dependencies, optional deps ([postgres])
-- `python -m build` → wheel + sdist
-- `twine check dist/*`
-- `twine upload dist/*` (or `uv publish`)
-- Verify: `pip install boyce` in a clean venv, `boyce` CLI starts
-- Executor: Will directly (PyPI credentials required)
+---
 
-### Step 4: Validate on a Live Warehouse
-- Connect to a live Redshift/Postgres instance
-- Run `ingest_source` with the live schema (live introspection via PostgresAdapter)
-- Run `ask_boyce` with real business questions
-- Document: what worked, what didn't, where the planner struggled
-- Capture: response times, planner accuracy, safety layer catches
-- This is the proof point. Nothing else creates as much strategic clarity.
-- Executor: Will directly (database credentials required)
+## Phase B — Testing Sprint [ACTIVE — week of March 9]
 
-### Step 5: Write the Null Trap Essay
-- Technical essay: "Here is a real failure mode in AI + database workflows.
-  Here is how structured semantics prevent it."
-- Structure: problem (30% of users invisible), demo (show the trap), solution (how the
-  protocol detects it), call to action (try it yourself)
-- **Must include a one-command reproducible demo** — `docker run` or equivalent where
-  the reader can see the trap happen and the protocol catch it in under 2 minutes.
-  Foundation already exists in `demo/magic_moment/` (seed.sql, snapshot.json, verify_demo.py).
-- This is not a blog post — it is the competitive thesis in executable form. Conference-talk quality.
-- Publish on personal blog, cross-post to: Hacker News, dbt community, r/dataengineering,
-  r/MachineLearning, dev.to
-- Include working code examples with `pip install boyce`
-- Executor: Will writes content; technical accuracy review by Claude Code
+**Model assignments:** Prep work is Sonnet. Testing is Will. Live fixes during testing are Sonnet.
 
-### Step 6: MCP Directory Submissions
-- Submit to Smithery (smithery.ai)
-- Submit to PulseMCP (pulsemcp.com)
-- Submit to mcp.so
-- Submit to Glama (glama.ai)
-- **Positioning:** Lead with "complementary safety layer for agentic database workflows"
-  — not "alternative to dbt." Descriptions should emphasize: null profiling, EXPLAIN pre-flight,
-  drift detection, deterministic SQL. Frame as the tool agents add *alongside* existing semantic layers.
-- Ensure MCP tool descriptions are optimized for agent discoverability
-- Executor: Will directly (account creation required)
+### Mon-Tue March 9-10 — Claude Code prep
 
-### Step 7: Integration Guides
-- Claude Desktop: 3-step copy-paste config (`claude_desktop_config.json`)
-- Cursor: `.cursor/mcp.json` config
-- Claude Code: `.claude/settings.json` or project-level MCP config
-- **Cline (VS Code extension):** MCP-compatible — Path 1, no LLM key needed. Config snippet
-  only (~5 lines). Already works; just needs a documented guide.
-- **Continue.dev (VS Code extension):** MCP-compatible — same as Cline. Already works; just
-  needs a documented guide.
-- Local LLM: Ollama setup with `BOYCE_PROVIDER=ollama` via LiteLLM
-- **dbt + Boyce dual MCP setup:** Show both MCP servers running simultaneously — dbt provides
-  semantic context, Boyce provides quality signals and safety. This is the fastest adoption path
-  for ICP #3 (dbt users who want a safety layer on top of what they already have).
-- Each guide: under 30 seconds to follow, works first try
-- Cursor model: **Sonnet 4.6** (docs, straightforward)
+- [ ] Integration guides written and verified:
+  - Claude Desktop (`claude_desktop_config.json` snippet, 3 steps)
+  - Cursor (`.cursor/mcp.json` config)
+  - Claude Code (`.claude/settings.json` MCP config)
+  - Cline (VS Code — MCP-native, Path 1, no LLM key needed)
+  - Continue.dev (VS Code — same as Cline)
+  - Local LLM (Ollama/vLLM via `BOYCE_PROVIDER=ollama`)
+- [ ] Docker Compose for Pagila operational (`docker compose up` → Postgres with 15 tables, realistic FK graph)
+- [ ] Validation query battery written (`boyce/tests/validation/query_battery.md`):
+  - Category A: structured capability tests (simple aggregation, multi-join, NULL trap, schema exploration, dialect edge case)
+  - Category B: real-world prompts by persona (junior analyst, staff engineer, non-technical stakeholder)
+- [ ] Testing runbook written (`boyce/tests/validation/testing_runbook.md`): what to do, in what order, what to record, how to log failures
+
+### Wed March 11 — Will (full day, morning start)
+
+**Morning — Integration:**
+- [ ] Run `boyce-init` — does it detect Claude Desktop / Cursor / Claude Code correctly?
+- [ ] Verify MCP connection comes up in each host
+- [ ] `get_schema` returns Pagila tables
+- [ ] One plain-English question per host → SQL back
+- [ ] Record: what broke, what was confusing, what would cause a new user to quit
+
+**Afternoon — Query Battery (on working surfaces):**
+- [ ] Run full Category A battery
+- [ ] Run Category B battery (messy, conversational prompts)
+- [ ] Claude Code fixes failures in real time; Will retests
+
+### Thu March 12 — Will (full day, morning start)
+
+**Morning:**
+- [ ] Retest all failures fixed overnight
+- [ ] Run any Category B queries not completed Wednesday
+- [ ] Confirm NULL trap fires on the demo scenario (`demo/magic_moment/`)
+
+**Afternoon — Decision:**
+- [ ] Version decision: v1.0 (interface is stable, product works) or iterate (planner has gaps)
+- [ ] If go: `cd boyce && python -m build && uv publish` (Will executes — PyPI credentials required)
+- [ ] Verify: `pip install boyce` in a clean venv, `boyce` CLI starts, imports work
+
+### Fri March 13 — Will (flex)
+- [ ] Close gaps from Wed-Thu that need retesting
+- [ ] Begin Phase C if published Thursday
+- [ ] Open items from Wednesday/Thursday that couldn't be addressed live
+
+---
+
+## Phase C — Amplification [AFTER PUBLISH]
+
+Sequenced strictly after publish. No amplification before the product is tested and shipped.
+
+### Content — Two Stories
+**Story 1 (adoption, ICs):** "Install this. Your AI tools can now answer questions about your
+database. Correctly." — Clean README, 30-second demo GIF, `pip install` as the hero action.
+
+**Story 2 (trust, C-suite):** "Here is a specific, reproducible failure mode in AI-generated SQL.
+Here is how deterministic compilation prevents it." — The Null Trap essay. Conference-talk quality.
+Uses `demo/magic_moment/` as the reproducible demo — reader can run it themselves.
+
+- [ ] Null Trap essay written (Will) + technical accuracy review (Claude Code)
+- [ ] Publish: personal blog + Hacker News + dbt community + r/dataengineering + dev.to
+- [ ] Integration guides published as public docs
+
+### Directories
+- [ ] Submit to Smithery (smithery.ai)
+- [ ] Submit to PulseMCP (pulsemcp.com)
+- [ ] Submit to mcp.so
+- [ ] Submit to Glama (glama.ai)
+- Positioning: "complementary safety layer" not "alternative to dbt"
+- Lead with: null profiling, EXPLAIN pre-flight, deterministic SQL, protocol standard
+
+### Block 1b — VS Code Extension
+See `_strategy/plans/block-1b-vscode-extension.md`.
+Starts after Phase C content and directories are done.
 
 ---
 
 ## Acceptance Criteria
-- [ ] `pip install boyce` works from PyPI in a clean environment
-- [ ] `boyce` CLI starts the MCP server
-- [x] `from boyce import process_request` works as a library (Step 2 done)
-- [ ] Real queries executed on a live warehouse with meaningful results
-- [ ] Null Trap essay published and submitted to at least 3 channels
-- [ ] Listed on at least 2 MCP server directories
-- [ ] Claude Desktop and Cursor integration guides tested end-to-end
-- [x] All existing tests still pass (260 tests green)
+- [x] Phase A: all engineering complete, 260 tests green
+- [ ] Phase B: Will has personally tested all MCP hosts and at least 2 non-MCP surfaces
+- [ ] Phase B: query battery run — results recorded, failures resolved
+- [ ] Phase B: version decision made by Will on Thursday March 12
+- [ ] Phase B: `pip install boyce` works in a clean environment post-publish
+- [ ] Phase C: Null Trap essay published to at least 3 channels
+- [ ] Phase C: listed on at least 2 MCP directories
+- [ ] Phase C: all integration guides live as public docs
 
-## Risks / Open Questions
-- Live warehouse deployment depends on database access and schema complexity — may surface planner weaknesses
-- PyPI name availability depends on Block 0 (naming)
+## Risks
+- Planner may produce poor SQL on complex Pagila joins — surfaces during Phase B; fix in planner or document limitations before publish
+- Version decision may push to "iterate" — Friday flex day absorbs this
 - Null Trap essay reception is unpredictable — have follow-up content ideas ready
