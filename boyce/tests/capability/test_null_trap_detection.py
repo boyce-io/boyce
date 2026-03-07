@@ -24,7 +24,7 @@ from unittest.mock import AsyncMock, MagicMock
 # Ensure importability
 _HERE = Path(__file__).parent
 _PROTO_ROOT = _HERE.parent.parent
-sys.path.insert(0, str(_PROTO_ROOT))
+sys.path.insert(0, str(_PROTO_ROOT / "src"))
 
 # Stub mcp if not installed
 if "mcp" not in sys.modules:

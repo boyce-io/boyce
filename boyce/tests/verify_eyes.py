@@ -43,7 +43,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Ensure the protocol package is importable from any working directory
 _HERE = Path(__file__).parent
 _PROTO_ROOT = _HERE.parent
-sys.path.insert(0, str(_PROTO_ROOT))
+sys.path.insert(0, str(_PROTO_ROOT / "src"))
 
 # Stub out `mcp` so server.py can be imported without the package installed
 if "mcp" not in sys.modules:

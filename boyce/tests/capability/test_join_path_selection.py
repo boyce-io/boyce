@@ -23,7 +23,7 @@ from pathlib import Path
 
 _HERE = Path(__file__).parent
 _PROTO_ROOT = _HERE.parent.parent
-sys.path.insert(0, str(_PROTO_ROOT))
+sys.path.insert(0, str(_PROTO_ROOT / "src"))
 
 from boyce.types import (
     Entity,

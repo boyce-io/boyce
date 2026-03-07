@@ -37,7 +37,7 @@ from typing import Any, Dict, Optional
 
 _MISSION_DIR = Path(__file__).parent
 _PROTO_ROOT = _MISSION_DIR.parent.parent           # boyce/
-sys.path.insert(0, str(_PROTO_ROOT))
+sys.path.insert(0, str(_PROTO_ROOT / "src"))
 
 _COMPOSE_FILE = _MISSION_DIR / "docker-compose.yml"
 _SEED_SQL = _MISSION_DIR / "seed.sql"

@@ -28,5 +28,4 @@ boyce-scan = "boyce.scan:main"
 boyce-init = "boyce.init_wizard:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["boyce*"]
+where = ["src"]

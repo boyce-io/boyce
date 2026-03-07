@@ -142,7 +142,7 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 - `2.0` — Inferred edges (name-match heuristic)
 - `100.0` — Many-to-many (avoid)
 
-### Key Files — `boyce/boyce/`
+### Key Files — `boyce/src/boyce/`
 
 | Concern | File |
 |---|---|
