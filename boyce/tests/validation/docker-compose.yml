@@ -1,0 +1,26 @@
+version: "3.8"
+
+# Boyce validation database — Pagila (DVD rental, 15 tables, rich FK graph)
+# Run setup.sh first to download SQL files, then: docker compose up -d
+# Connection: postgresql://boyce:password@localhost:5433/pagila
+
+services:
+  pagila:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: boyce
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: pagila
+    ports:
+      - "5433:5432"          # 5433 to avoid collision with live_fire on 5432
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d   # Pagila SQL auto-runs on first start
+      - pagila_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boyce -d pagila"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pagila_data:
