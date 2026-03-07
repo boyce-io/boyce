@@ -1,0 +1,35 @@
+# DataShark Dependencies (Python 3.10+)
+# Installable package source of truth: pyproject.toml
+
+# Core Dependencies
+pandas>=2.0.0
+psycopg2-binary>=2.9.0  # PostgreSQL/Redshift driver
+python-dotenv>=1.0.0     # Environment variable management
+
+# UI Framework
+gradio>=4.0.0            # Modern Python UI (Phase 2)
+
+# Graph Algorithms
+networkx>=3.0             # Graph construction and pathfinding (Phase 3: The Weaver)
+
+# YAML Parsing
+PyYAML>=6.0               # dbt YAML file parsing (Phase 5: Silver Standard)
+
+# Optional but recommended
+sqlparse>=0.4.4          # SQL formatting
+tabulate>=0.9.0          # Pretty table printing
+
+# CLI Framework (Phase 1: CLI Chassis)
+typer[all]>=0.9.0        # Modern CLI framework with type hints
+rich>=13.0.0             # Beautiful terminal output (colors, tables, spinners)
+
+# Model Agnostic Router (Phase 1: CLI Chassis)
+litellm>=1.0.0           # Unified LLM API router (OpenAI, Anthropic, Ollama, etc.)
+
+# Phase 2: Intelligence Layer
+chromadb>=0.4.0          # Local Vector Store
+openai>=1.0.0            # Brain embeddings
+pysqlite3>=0.5.0  # SQLite Override for Mac
+
+# Ingestion Engine
+watchdog>=3.0.0          # File system monitoring for real-time ingestion

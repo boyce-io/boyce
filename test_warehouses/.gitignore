@@ -1,0 +1,5 @@
+# Git-ignored: large external repos cloned by setup.sh
+mattermost/
+dagster_platform/
+
+# Keep everything else (small committed fixtures)

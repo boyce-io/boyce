@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "datashark": {
+      "command": "python3",
+      "args": [
+        "-m",
+        "datashark.core.server"
+      ],
+      "cwd": ".",
+      "env": {
+        "PYTHONPATH": "../:./src:${PYTHONPATH}",
+        "DATASHARK_CACHE_MODE": "cache"
+      }
+    }
+  }
+}
+
+
+
+
+
+

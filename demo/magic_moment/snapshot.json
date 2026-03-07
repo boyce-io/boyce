@@ -1,0 +1,69 @@
+{
+  "_comment": "SemanticSnapshot for the magic_moment demo. snapshot_id is a placeholder — verify_demo.py computes the real SHA-256 before ingesting. Pass this to the ingest_source MCP tool to load the schema into DataShark.",
+  "snapshot_id": "COMPUTED",
+  "source_system": "dbt",
+  "schema_version": "v0.1",
+  "entities": {
+    "entity:subscriptions": {
+      "id": "entity:subscriptions",
+      "name": "subscriptions",
+      "schema": "public",
+      "description": "User subscription records. One row per subscription. status can be 'active', 'cancelled', or NULL.",
+      "grain": "subscription_id",
+      "fields": [
+        "field:subscriptions:id",
+        "field:subscriptions:user_id",
+        "field:subscriptions:status",
+        "field:subscriptions:last_login"
+      ]
+    }
+  },
+  "fields": {
+    "field:subscriptions:id": {
+      "id": "field:subscriptions:id",
+      "entity_id": "entity:subscriptions",
+      "name": "id",
+      "field_type": "ID",
+      "data_type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "description": "Primary key — auto-generated serial."
+    },
+    "field:subscriptions:user_id": {
+      "id": "field:subscriptions:user_id",
+      "entity_id": "entity:subscriptions",
+      "name": "user_id",
+      "field_type": "FOREIGN_KEY",
+      "data_type": "INTEGER",
+      "nullable": false,
+      "description": "Foreign key to the users table."
+    },
+    "field:subscriptions:status": {
+      "id": "field:subscriptions:status",
+      "entity_id": "entity:subscriptions",
+      "name": "status",
+      "field_type": "DIMENSION",
+      "data_type": "VARCHAR(20)",
+      "nullable": true,
+      "description": "Subscription status. One of: 'active', 'cancelled'. NULL means unknown or onboarding — NOT the same as cancelled.",
+      "valid_values": ["active", "cancelled"]
+    },
+    "field:subscriptions:last_login": {
+      "id": "field:subscriptions:last_login",
+      "entity_id": "entity:subscriptions",
+      "name": "last_login",
+      "field_type": "TIMESTAMP",
+      "data_type": "TIMESTAMP",
+      "nullable": true,
+      "description": "Timestamp of the user's most recent login. Cancelled users may still have recent last_login values — check before bulk deletes."
+    }
+  },
+  "joins": [],
+  "metadata": {
+    "source_type": "dbt_manifest",
+    "database": "demo_db",
+    "schema": "public",
+    "demo": "magic_moment",
+    "note": "The Trap: 30% NULL status, 200 cancelled users with recent last_login."
+  }
+}

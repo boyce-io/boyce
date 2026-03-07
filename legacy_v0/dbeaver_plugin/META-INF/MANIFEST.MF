@@ -1,0 +1,12 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: DataShark UI
+Bundle-SymbolicName: com.datashark.ui;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Vendor: Convergent Methods
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ org.eclipse.jface
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Automatic-Module-Name: com.datashark.ui
+Bundle-ActivationPolicy: lazy

@@ -1,0 +1,35 @@
+version: 2
+
+sources:
+  - name: raw
+    database: retail_db
+    schema: raw
+    tables:
+      - name: orders
+      - name: customers
+
+models:
+  - name: fct_orders
+    description: "Fact table for all orders joined with customer details"
+    config:
+      materialized: table
+    meta:
+      owner: "finance"
+      priority: "high"
+    columns:
+      - name: order_id
+        description: "Primary key"
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Foreign key to customers"
+        tests:
+          - not_null
+          - relationships:
+              to: source('raw', 'customers')
+              field: id
+      - name: amount
+        description: "Total order value in USD"
+      - name: status
+        description: "Order status (completed, pending, returned)"

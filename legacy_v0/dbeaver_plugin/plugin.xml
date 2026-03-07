@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <!-- Command Definition -->
+   <extension point="org.eclipse.ui.commands">
+      <command
+            name="Ping DataShark"
+            description="Send a ping request to the DataShark Python server"
+            id="com.datashark.ui.commands.ping"
+            categoryId="org.eclipse.ui.category.file">
+      </command>
+   </extension>
+   
+   <!-- Handler Mapping -->
+   <extension point="org.eclipse.ui.handlers">
+      <handler
+            commandId="com.datashark.ui.commands.ping"
+            class="com.datashark.ui.handlers.PingHandler">
+      </handler>
+   </extension>
+   
+   <!-- Main Menu Contribution -->
+   <extension point="org.eclipse.ui.menus">
+      <menuContribution
+            locationURI="menu:org.eclipse.ui.main.menu?after=additions">
+         <menu
+               label="DataShark"
+               id="com.datashark.ui.menus.main">
+            <command
+                  commandId="com.datashark.ui.commands.ping"
+                  label="Ping DataShark"
+                  style="push"
+                  tooltip="Send a ping request to verify DataShark server connection">
+            </command>
+         </menu>
+      </menuContribution>
+      
+      <!-- Toolbar Contribution for Better Visibility -->
+      <menuContribution
+            locationURI="toolbar:org.eclipse.ui.main.toolbar?after=additions">
+         <toolbar
+               id="com.datashark.ui.toolbar.main"
+               label="DataShark">
+            <command
+                  commandId="com.datashark.ui.commands.ping"
+                  label="Ping DataShark"
+                  style="push"
+                  tooltip="Ping DataShark Server"
+                  icon="platform:/plugin/org.eclipse.ui/icons/full/elcl16/refresh.png">
+            </command>
+         </toolbar>
+      </menuContribution>
+   </extension>
+</plugin>

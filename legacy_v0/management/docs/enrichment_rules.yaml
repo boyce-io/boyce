@@ -1,0 +1,22 @@
+rules:
+  - concept: Revenue
+    confidence: 0.8
+    pattern: (?i)\brevenue\b|\bsales\b|\bincome\b
+    source: pattern
+  - concept: Artist
+    confidence: 0.8
+    pattern: (?i)\bartist\b|\bperformer\b
+    source: pattern
+  - concept: Audience
+    confidence: 0.7
+    pattern: (?i)\baudience\b|\bviewer\b|\buser\b
+    source: pattern
+  - concept: Date
+    confidence: 0.9
+    pattern: (?i)\bdate\b|\bdatetime\b|\bcreated_at\b|\bupdated_at\b
+    source: pattern
+  - concept: Country
+    confidence: 0.7
+    pattern: (?i)\bcountry\b|\bregion\b|\blocation\b
+    source: pattern
+

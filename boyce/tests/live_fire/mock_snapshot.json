@@ -1,0 +1,68 @@
+{
+  "_comment": "SemanticSnapshot for the live_fire test. snapshot_id is a placeholder — run_mission.py computes the real SHA-256 hash before ingesting.",
+  "snapshot_id": "COMPUTED",
+  "source_system": "dbt",
+  "schema_version": "v0.1",
+  "entities": {
+    "entity:agents": {
+      "id": "entity:agents",
+      "name": "agents",
+      "schema_name": "public",
+      "description": "Intelligence agents roster. Each row is one agent.",
+      "grain": "agent_id",
+      "fields": [
+        "field:agents:id",
+        "field:agents:codename",
+        "field:agents:status",
+        "field:agents:kill_count"
+      ]
+    }
+  },
+  "fields": {
+    "field:agents:id": {
+      "id": "field:agents:id",
+      "entity_id": "entity:agents",
+      "name": "id",
+      "field_type": "ID",
+      "data_type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "description": "Primary key — auto-generated serial"
+    },
+    "field:agents:codename": {
+      "id": "field:agents:codename",
+      "entity_id": "entity:agents",
+      "name": "codename",
+      "field_type": "DIMENSION",
+      "data_type": "VARCHAR(50)",
+      "nullable": false,
+      "description": "Agent code name (e.g. '007', 'Nomi')"
+    },
+    "field:agents:status": {
+      "id": "field:agents:status",
+      "entity_id": "entity:agents",
+      "name": "status",
+      "field_type": "DIMENSION",
+      "data_type": "VARCHAR(20)",
+      "nullable": false,
+      "description": "Current operational status",
+      "valid_values": ["Active", "Inactive"]
+    },
+    "field:agents:kill_count": {
+      "id": "field:agents:kill_count",
+      "entity_id": "entity:agents",
+      "name": "kill_count",
+      "field_type": "MEASURE",
+      "data_type": "INTEGER",
+      "nullable": false,
+      "description": "Total confirmed eliminations"
+    }
+  },
+  "joins": [],
+  "metadata": {
+    "source_type": "manifest",
+    "database": "live_fire_db",
+    "schema": "public",
+    "note": "Minimal snapshot for the live_fire integration test. Mirrors the seed.sql schema exactly."
+  }
+}

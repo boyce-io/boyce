@@ -1,0 +1,10 @@
+[project]
+name = "datashark-agents"
+version = "0.1.0"
+description = "DataShark Agents Legacy"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=0.20.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+]

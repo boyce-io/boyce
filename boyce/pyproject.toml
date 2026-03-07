@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "boyce"
+version = "0.1.0"
+description = "Semantic protocol and safety layer for agentic database workflows"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "mcp>=1.0.0",
+    "pydantic>=2.0",
+    "networkx>=3.0",
+    "sqlparse>=0.4.4",
+    "PyYAML>=6.0",
+    "litellm>=1.0.0",
+]
+
+[project.optional-dependencies]
+postgres = ["asyncpg>=0.29.0"]
+parquet = ["pyarrow>=14.0.0"]
+http = ["starlette>=0.27.0", "uvicorn>=0.20.0"]
+
+[project.scripts]
+boyce = "boyce.cli:main"
+boyce-scan = "boyce.scan:main"
+boyce-init = "boyce.init_wizard:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["boyce*"]

@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IngestionManifest",
+  "type": "object",
+  "required": [
+    "run_id",
+    "system",
+    "start_time",
+    "end_time",
+    "counts",
+    "versions",
+    "status",
+    "hash_summaries"
+  ],
+  "properties": {
+    "run_id": {"type": "string"},
+    "system": {"type": "string"},
+    "repo": {"type": ["string", "null"]},
+    "start_time": {"type": "string", "format": "date-time"},
+    "end_time": {"type": "string", "format": "date-time"},
+    "counts": {
+      "type": "object",
+      "required": ["nodes", "edges", "tombstones"],
+      "properties": {
+        "nodes": {"type": "integer", "minimum": 0},
+        "edges": {"type": "integer", "minimum": 0},
+        "tombstones": {"type": "integer", "minimum": 0}
+      }
+    },
+    "versions": {
+      "type": "object",
+      "required": ["schema_version", "extractor_version"],
+      "properties": {
+        "schema_version": {"type": "string"},
+        "extractor_version": {"type": "string"}
+      }
+    },
+    "hash_summaries": {
+      "type": "object",
+      "required": ["nodes_sha256", "edges_sha256"],
+      "properties": {
+        "nodes_sha256": {"type": "string"},
+        "edges_sha256": {"type": "string"}
+      }
+    },
+    "changed_since": {"type": ["string", "null"], "format": "date-time"},
+    "status": {
+      "type": "string",
+      "enum": ["success", "warning", "failure"]
+    }
+  },
+  "additionalProperties": true
+}

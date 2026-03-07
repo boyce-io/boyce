@@ -1,0 +1,97 @@
+# Boyce .gitignore
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data files (don't commit actual data)
+*.csv
+*.xlsx
+*.parquet
+# Exception: test fixtures ARE committed
+!test_warehouses/**/*.csv
+
+# Looker repository (customer-specific, never commit)
+data/looker/
+
+# Session state (local environment state, not committed)
+.boyce/session_state.json
+
+# Logs
+*.log
+
+# Schema snapshots (optional - you may want to commit these)
+# Uncomment if you don't want schema in git:
+# ai_context/schema_snapshot.json
+# ai_context/schema_snapshot.md
+
+# Node.js / TypeScript Extension
+node_modules/
+boyce-extension/node_modules/
+boyce-extension/out/
+boyce-extension/dist/
+*.vsix
+
+# Build artifacts
+out/
+dist/
+build/
+*.zip
+
+
+# Cursor agentic workspace (legacy, tool decommissioned)
+cursor_workspace/
+
+# Test artifacts and caches
+.pytest_cache/
+.boyce/
+__pycache__/
+*.pyc
+*.db
+*.tmp
+!test_warehouses/**/*.db
+
+# Claude Code local config (developer-specific)
+.claude/settings.local.json
+.claude/settings.json
+.claude/sensitive_terms.txt
+
+# Build artifacts
+*.egg-info/
+
+# Dead tools
+CURSOR.md
+
+# Local context (private snapshots — strictly git-ignored)
+_local_context/
+
+# Legacy v0 runtime data (created at runtime, never commit)
+legacy_v0/extensions_mcp/.datashark/

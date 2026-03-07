@@ -1,0 +1,85 @@
+{
+  "_comment": "Minimal dbt manifest (v10 schema) describing the subscriptions model. This is what a dbt user would have in target/manifest.json after `dbt compile`. DataShark reads this to build its SemanticSnapshot — see snapshot.json for the compiled form.",
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v10/manifest.json",
+    "dbt_version": "1.7.0",
+    "generated_at": "2026-02-18T00:00:00.000000Z",
+    "invocation_id": "demo-magic-moment-0000",
+    "env": {}
+  },
+  "nodes": {
+    "model.demo_project.subscriptions": {
+      "unique_id": "model.demo_project.subscriptions",
+      "resource_type": "model",
+      "fqn": ["demo_project", "subscriptions"],
+      "name": "subscriptions",
+      "alias": "subscriptions",
+      "schema": "public",
+      "database": "demo_db",
+      "description": "User subscription records. One row per subscription. Status can be 'active', 'cancelled', or NULL (unknown/onboarding).",
+      "original_file_path": "models/subscriptions.sql",
+      "path": "subscriptions.sql",
+      "checksum": {
+        "name": "sha256",
+        "checksum": "demo"
+      },
+      "columns": {
+        "id": {
+          "name": "id",
+          "description": "Primary key — auto-generated serial.",
+          "data_type": "integer",
+          "meta": {},
+          "constraints": [{"type": "primary_key"}],
+          "tags": []
+        },
+        "user_id": {
+          "name": "user_id",
+          "description": "Foreign key to the users table.",
+          "data_type": "integer",
+          "meta": {},
+          "constraints": [],
+          "tags": []
+        },
+        "status": {
+          "name": "status",
+          "description": "Subscription status. One of: 'active', 'cancelled'. NULL indicates an unknown or onboarding state — treat as DISTINCT from 'active' or 'cancelled'.",
+          "data_type": "varchar(20)",
+          "meta": {
+            "nullable": true,
+            "accepted_values": ["active", "cancelled", null]
+          },
+          "constraints": [],
+          "tags": ["pii_risk", "nullable_trap"]
+        },
+        "last_login": {
+          "name": "last_login",
+          "description": "Timestamp of the user's most recent login. Note: 'cancelled' users may still have recent last_login values.",
+          "data_type": "timestamp",
+          "meta": {
+            "nullable": true
+          },
+          "constraints": [],
+          "tags": []
+        }
+      },
+      "config": {
+        "enabled": true,
+        "materialized": "table",
+        "schema": "public"
+      },
+      "tags": ["subscriptions", "billing"],
+      "refs": [],
+      "sources": [],
+      "meta": {
+        "owner": "billing-team",
+        "sla": "critical",
+        "data_sensitivity": "high"
+      }
+    }
+  },
+  "sources": {},
+  "exposures": {},
+  "metrics": {},
+  "groups": {},
+  "semantic_models": {}
+}

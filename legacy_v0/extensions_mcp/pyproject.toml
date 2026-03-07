@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datashark-mcp"
+version = "0.3.2"
+description = "MCP server for DataShark - AI-native database metadata access with ADCIL and learning loop"
+authors = [
+    {name = "DataShark Team"}
+]
+requires-python = ">=3.9"
+dependencies = [
+    "psycopg2-binary>=2.9.0",
+    "pandas>=1.5.0",
+    "sqlparse>=0.4.4",
+    "jsonschema>=4.21.1,<4.22",
+    "referencing>=0.33.0,<0.34",
+    "pydantic>=2.0.0",  # Required for Safety Kernel type definitions
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+datashark_mcp = ["schemas/*.json"]
+
+[project.scripts]
+datashark = "datashark_mcp.cli:main"
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+
