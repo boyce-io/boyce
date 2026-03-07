@@ -38,7 +38,7 @@ Follows the Mandatory Model Gate defined in `~/.claude/CLAUDE.md`.
 ./quickstart.sh --postgres    # also installs asyncpg
 
 # Install
-pip install -e .                              # installs boyce (repo root pyproject.toml)
+pip install -e boyce/                         # installs boyce (from boyce/pyproject.toml)
 pip install -e "boyce/[postgres]"  # add asyncpg for live DB adapter
 
 # Run the MCP server
@@ -146,7 +146,7 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 
 | Concern | File |
 |---|---|
-| **MCP entry point** (6 tools) | `server.py` |
+| **MCP entry point** (8 tools) | `server.py` |
 | **Deterministic kernel** | `kernel.py` — `process_request(snapshot, filter)` |
 | **Semantic graph** | `graph.py` — `SemanticGraph` (NetworkX MultiDiGraph) |
 | **Protocol contract** | `types.py` — `SemanticSnapshot`, `Entity`, `FieldDef`, `JoinDef` |

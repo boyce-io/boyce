@@ -36,7 +36,7 @@ cd test_warehouses/
 | Fixture | Location | Parser Coverage | Best For |
 |---------|----------|----------------|----------|
 | **Null Trap demo** | `demo/magic_moment/` | dbt manifest parser | Safety layer demo, NULL distribution validation |
-| **Live Fire** | `datashark-protocol/tests/live_fire/` | Raw JSON snapshot | Pipeline integration smoke test (Docker) |
+| **Live Fire** | `boyce/tests/live_fire/` | Raw JSON snapshot | Pipeline integration smoke test (Docker) |
 | **Small Retail** | `legacy_v0/tests/universes/small_retail/` | dbt manifest parser | Simple multi-entity fixture |
 
 ## Parser Validation Matrix

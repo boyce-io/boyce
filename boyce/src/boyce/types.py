@@ -4,8 +4,7 @@ Core type definitions for the Boyce protocol.
 These types define the source-agnostic canonical representation of database
 metadata that can be populated from any ingestion adapter (Looker, Tableau, dbt, etc.).
 
-This file IS the protocol contract — zero changes to fields or logic from
-the legacy datashark types.
+This file IS the protocol contract — the canonical Boyce type definitions.
 """
 
 from __future__ import annotations

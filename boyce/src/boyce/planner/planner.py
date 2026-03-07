@@ -4,7 +4,7 @@ Query Planner - The SQL Writer
 Bridges natural language queries to StructuredFilter format.
 Uses LiteLLM to convert user queries into structured SQL components.
 
-This is a clean-room port of the legacy datashark planner.
+This is a clean-room reimplementation of the legacy planner.
 All imports reference boyce.* only.
 """
 

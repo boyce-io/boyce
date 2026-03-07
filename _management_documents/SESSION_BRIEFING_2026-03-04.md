@@ -1,6 +1,10 @@
 # Session Briefing — March 4, 2026
 
-**Read this to bootstrap back to full context.**
+> **SUPERSEDED** — This document is a historical snapshot from 2026-03-04, before the
+> rename to Boyce and all Block 1 Phase A engineering. For current state, read
+> `_strategy/MASTER.md`. Do not use this document to bootstrap a session.
+
+---
 
 ---
 

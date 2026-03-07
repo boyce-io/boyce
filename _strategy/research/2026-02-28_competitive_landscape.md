@@ -1,6 +1,6 @@
 # Strategic Research: Agentic Database Tools Landscape
 **Date:** 2026-02-28
-**Purpose:** Strategic product planning for DataShark
+**Purpose:** Strategic product planning for Boyce
 
 ---
 
@@ -28,9 +28,9 @@ Concrete example: They removed 2,000 tokens from the system prompt because "Sonn
 
 Cherny warns against building "scaffolding" -- complex code wrappers that improve current model performance by 10-20% but become obsolete with the next model release. Claude Code runs in a terminal as a bare-bones tool with raw access to the model specifically because of this philosophy: no UI chrome, no scaffolding, close to the metal.
 
-### Implications for DataShark
+### Implications for Boyce
 
-This is directly relevant. DataShark's deterministic kernel (process_request) is NOT scaffolding -- it is a correctness layer that models should never replace (SQL generation needs to be deterministic). But the QueryPlanner's prompt engineering, the StructuredFilter contract complexity, and any "helper" logic that compensates for model weaknesses in producing structured output -- those are candidates for the Bitter Lesson. Build the protocol layer thick, the model-compensation layer thin.
+This is directly relevant. Boyce's deterministic kernel (process_request) is NOT scaffolding -- it is a correctness layer that models should never replace (SQL generation needs to be deterministic). But the QueryPlanner's prompt engineering, the StructuredFilter contract complexity, and any "helper" logic that compensates for model weaknesses in producing structured output -- those are candidates for the Bitter Lesson. Build the protocol layer thick, the model-compensation layer thin.
 
 ---
 
@@ -67,11 +67,11 @@ Rather than following a fixed script, the agent evaluates its own progress. If a
 
 Golden SQL queries catch regressions before users notice -- a test suite of known-correct queries that runs continuously.
 
-### Implications for DataShark
+### Implications for Boyce
 
-This validates DataShark's direction but shows the gap. OpenAI's agent has six layers of context; DataShark has one (the SemanticSnapshot). The memory/learning layer and institutional knowledge layer are completely absent. The "code context beats metadata" finding suggests that DataShark's dbt manifest parsing (which captures lineage and transformation code) is on the right track -- but we should expose pipeline code context, not just schema metadata.
+This validates Boyce's direction but shows the gap. OpenAI's agent has six layers of context; Boyce has one (the SemanticSnapshot). The memory/learning layer and institutional knowledge layer are completely absent. The "code context beats metadata" finding suggests that Boyce's dbt manifest parsing (which captures lineage and transformation code) is on the right track -- but we should expose pipeline code context, not just schema metadata.
 
-The golden SQL approach maps directly to DataShark's verify_eyes test pattern but needs to be extended to a continuous evaluation harness.
+The golden SQL approach maps directly to Boyce's verify_eyes test pattern but needs to be extended to a continuous evaluation harness.
 
 ---
 
@@ -123,9 +123,9 @@ MCP and A2A are not competitors; they are complementary. Both are now under Linu
 5. Every major AI vendor adopted it (removing the "which standard" question)
 6. Linux Foundation governance removed vendor lock-in fear
 
-### Implications for DataShark
+### Implications for Boyce
 
-DataShark is already an MCP server -- this is the right bet and it has won. The question is no longer "should we be MCP" but "how do we stand out among 10,000+ MCP servers." The database/data category is getting crowded (dbt MCP, DBHub, etc.). Differentiation has to come from the semantic layer and safety features, not from the protocol itself.
+Boyce is already an MCP server -- this is the right bet and it has won. The question is no longer "should we be MCP" but "how do we stand out among 10,000+ MCP servers." The database/data category is getting crowded (dbt MCP, DBHub, etc.). Differentiation has to come from the semantic layer and safety features, not from the protocol itself.
 
 ---
 
@@ -159,9 +159,9 @@ On February 14, 2026, Steinberger announced he was joining OpenAI. Sam Altman tw
 
 Significant: 386 malicious "skills" were published on ClawHub, masquerading as crypto trading tools but installing info-stealing malware. The security model for agent-with-system-permissions is still immature.
 
-### Implications for DataShark
+### Implications for Boyce
 
-OpenClaw is in a completely different product category (personal assistant agent) but its adoption trajectory shows the velocity possible for open-source AI tools. The security concerns are relevant -- DataShark's read-only query execution and safety kernel are differentiators in a world where most agents have overly permissive access patterns.
+OpenClaw is in a completely different product category (personal assistant agent) but its adoption trajectory shows the velocity possible for open-source AI tools. The security concerns are relevant -- Boyce's read-only query execution and safety kernel are differentiators in a world where most agents have overly permissive access patterns.
 
 ---
 
@@ -177,7 +177,7 @@ dbt Labs shipped an official MCP server, now generally available. Capabilities:
 - **Deployment:** local (with OAuth) or remote (dbt Cloud)
 - Announced dbt Agents (beta) -- governed, task-specific AI agents built on the dbt platform
 
-This is DataShark's most direct competitor in the MCP space.
+This is Boyce's most direct competitor in the MCP space.
 
 ### Vanna AI 2.0
 
@@ -209,16 +209,16 @@ Google Cloud rolling out Text-to-SQL across BigQuery, Cloud SQL, AlloyDB. Integr
 
 ### Key Gap in the Market
 
-"None of the tested solutions provided adequate support for complex multi-database scenarios, a critical requirement for enterprise implementations." This is where DataShark's semantic graph (multi-snapshot join resolution) could differentiate.
+"None of the tested solutions provided adequate support for complex multi-database scenarios, a critical requirement for enterprise implementations." This is where Boyce's semantic graph (multi-snapshot join resolution) could differentiate.
 
-### Implications for DataShark
+### Implications for Boyce
 
 The market has fragmented into three tiers:
 1. **Platform plays** (dbt, Oracle, Google) -- bundled with existing data infrastructure
 2. **MCP bridge tools** (DBHub) -- thin connection layer, no semantic intelligence
-3. **Semantic/intelligent layer** (DataShark, Vanna) -- understanding of data meaning
+3. **Semantic/intelligent layer** (Boyce, Vanna) -- understanding of data meaning
 
-DataShark's positioning should be tier 3: the semantic intelligence layer. The deterministic kernel, safety features, and NULL trap detection are unique. dbt MCP is the most direct threat but it requires dbt adoption; DataShark is platform-agnostic.
+Boyce's positioning should be tier 3: the semantic intelligence layer. The deterministic kernel, safety features, and NULL trap detection are unique. dbt MCP is the most direct threat but it requires dbt adoption; Boyce is platform-agnostic.
 
 ---
 
@@ -261,13 +261,13 @@ These tools mathematically guarantee schema-conformant output by modifying token
 
 ### Can Local Models Produce a StructuredFilter Dict?
 
-**Yes, with caveats.** For DataShark's StructuredFilter contract:
+**Yes, with caveats.** For Boyce's StructuredFilter contract:
 - Constrained decoding (XGrammar/llguidance) can guarantee valid JSON matching the schema
 - Qwen 2.5-32B+ would be the recommended local model for this task
 - The semantic quality (correct entity/field resolution, proper aggregation types) is the bottleneck, not JSON formatting
 - A local model could reliably produce the JSON structure but may make more semantic errors than Claude/GPT-4o in mapping NL concepts to the correct entities and fields
 
-### Implications for DataShark
+### Implications for Boyce
 
 This opens a real path to a fully-local deployment mode. The architecture already separates the LLM call (QueryPlanner) from the deterministic kernel. Swapping litellm to point at a local Qwen 2.5 via Ollama/vLLM is technically straightforward. The question is whether semantic accuracy is good enough for production use, which depends on the complexity of the customer's schema. For schemas with <50 tables, local models are likely viable now.
 
@@ -329,9 +329,9 @@ The protocol becomes the default because alternatives are too costly:
 - **JSON-RPC** (on its own): Lacked the ecosystem wrapper
 - **Competing proprietary protocols**: Died when the open standard achieved critical mass
 
-### Implications for DataShark
+### Implications for Boyce
 
-DataShark's StructuredFilter contract is effectively a protocol -- a stable interface between the LLM (QueryPlanner) and the deterministic kernel. If this contract were standardized and adopted by other tools, it could become "the OpenAPI of NL-to-SQL": a common intermediate representation that any planner can output and any SQL builder can consume.
+Boyce's StructuredFilter contract is effectively a protocol -- a stable interface between the LLM (QueryPlanner) and the deterministic kernel. If this contract were standardized and adopted by other tools, it could become "the OpenAPI of NL-to-SQL": a common intermediate representation that any planner can output and any SQL builder can consume.
 
 The pattern suggests:
 - Keep the contract at the right abstraction level (data concepts, not SQL concepts)
