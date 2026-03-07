@@ -8,6 +8,27 @@ version = "0.1.0"
 description = "Semantic protocol and safety layer for agentic database workflows"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+authors = [{name = "Will Wright"}]
+keywords = ["sql", "mcp", "agents", "database", "semantic", "llm", "ai", "protocol", "redshift", "postgres"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://boyce.io"
+Repository = "https://github.com/boyce-io/boyce"
+"Bug Tracker" = "https://github.com/boyce-io/boyce/issues"
 dependencies = [
     "mcp>=1.0.0",
     "pydantic>=2.0",

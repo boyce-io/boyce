@@ -69,7 +69,7 @@ def test_scan_empty_directory():
 
 def test_scan_nonexistent_path():
     """scan_path on a nonexistent path — no crash, just empty."""
-    bogus = Path("/tmp/datashark_nonexistent_path_xyz")
+    bogus = Path("/tmp/boyce_nonexistent_path_xyz")
     # _collect_files returns [] for non-dir, non-file
     result = scan_path(bogus)
     assert result["scanned"] == 0

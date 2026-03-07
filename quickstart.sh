@@ -83,7 +83,7 @@ cat > "$ENV_TEMPLATE" <<'EOF'
 # Provider name understood by LiteLLM: "anthropic", "openai", "ollama", etc.
 BOYCE_PROVIDER=anthropic
 # Model ID as LiteLLM expects it (prefix not needed for major providers)
-BOYCE_MODEL=claude-3-5-sonnet-20241022
+BOYCE_MODEL=claude-sonnet-4-6
 
 # ── LLM Credentials — set whichever matches your provider ──────────────────
 ANTHROPIC_API_KEY=sk-ant-YOUR_KEY_HERE
@@ -166,7 +166,7 @@ cat <<CLAUDEEOF
         "command": "$SERVER_CMD",
         "env": {
           "BOYCE_PROVIDER": "anthropic",
-          "BOYCE_MODEL": "claude-3-5-sonnet-20241022",
+          "BOYCE_MODEL": "claude-sonnet-4-6",
           "ANTHROPIC_API_KEY": "sk-ant-YOUR_KEY_HERE"
         }
       }
