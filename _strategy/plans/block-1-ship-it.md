@@ -18,7 +18,7 @@ or submitted to any public directory. This is not optional polish — it is the 
 
 All engineering work done. No open items.
 
-- [x] Rename codebase (`datashark-protocol` → `boyce`, all imports, CLI, pyproject.toml, docs)
+- [x] Rename codebase (all imports, CLI, pyproject.toml, docs → `boyce`)
 - [x] Secure namespace (PyPI 0.0.1 placeholder, GitHub org `boyce-io`, domain `boyce.io`)
 - [x] 8 MCP tools: `ingest_source`, `ingest_definition`, `get_schema`, `build_sql`, `solve_path`, `ask_boyce`, `query_database`, `profile_data`
 - [x] `boyce-init` setup wizard (auto-detects and configures Claude Desktop, Cursor, Claude Code)

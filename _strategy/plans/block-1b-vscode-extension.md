@@ -18,7 +18,7 @@ handles all LLM and SQL logic internally.
 - Marketplace distribution is built in (no sideloading)
 - VS Code users expect free + paid tiers — natural monetization surface
 - The HTTP API surface (`boyce serve --http`) is already operational
-- Legacy v0 has a substantial reference implementation in `legacy_v0/extensions_vscode_extension/`
+- Legacy v0 reference implementation (preserved in git history) was used as scaffold reference
 
 ### Monetization Strategy
 The core engine is MIT forever. IDE extensions are the experience layer where monetization lives.
@@ -68,7 +68,7 @@ The extension is a thin GUI. All intelligence lives in Boyce.
 
 ## Legacy Reference
 
-`legacy_v0/extensions_vscode_extension/` contains a substantial v0 extension (~700 LOC):
+The v0 extension (~700 LOC, now in git history only) provided these reusable patterns:
 
 | Component | File | Reusable? |
 |-----------|------|-----------|

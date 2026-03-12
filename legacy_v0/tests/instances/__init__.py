@@ -1,4 +1,0 @@
-"""
-Instance Management Tests
-"""
-

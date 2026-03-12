@@ -93,5 +93,6 @@ CURSOR.md
 # Local context (private snapshots — strictly git-ignored)
 _local_context/
 
-# Legacy v0 runtime data (created at runtime, never commit)
-legacy_v0/extensions_mcp/.datashark/
+# Extension build artifacts
+extension/out/
+extension/node_modules/

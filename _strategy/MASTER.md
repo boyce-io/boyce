@@ -307,6 +307,23 @@ See `_strategy/plans/block-1-ship-it.md` for detailed plan.
 - [x] Validation query battery written (structured capability tests + real-world prompts by persona)
 - [x] Testing runbook ready (what to do, in what order, what to record)
 
+**COMPLETE — Prior-Name Scrub (CEO Directive, 2026-03-11)**
+
+Executed 2026-03-11. All references to prior product names, prior client names,
+and origin-context terminology have been removed from active code, config, and docs.
+
+Actions taken:
+- `legacy_v0/` deleted entirely (328 files — preserved in git history)
+- All `__pycache__/` directories deleted
+- 5 stale management documents deleted (pre-rename brainstorming, session briefings, strip plan)
+- 5 stale handoff archives deleted
+- Root `uv.lock` deleted (stale artifact from deleted root pyproject.toml)
+- Demo files, `.gitignore`, `CLAUDE.md`, strategy docs — all scrubbed
+- grep verification: zero hits in active tracked files
+
+Remaining: Will should do a manual review pass to confirm no contextual references
+survive that a string match wouldn't catch.
+
 *Wed March 11 (Will — full day):*
 - [ ] Integration test: `boyce-init` + MCP connection across all hosts
 - [ ] Query battery: full run across all working surfaces (fixes applied live)
@@ -343,9 +360,9 @@ the VS Code Marketplace, with a pro tier (visual schema explorer, team sharing, 
 history) added later once organic demand is established. Same pattern as Docker, Terraform,
 Grafana: engine free, experience layer paid.
 
-Legacy reference implementation exists in `legacy_v0/extensions_vscode_extension/` (~700 LOC
-TypeScript — schema tree, SQL editor, completions, query console, credential management).
-UI patterns are reusable; API layer needs rewrite to call HTTP instead of old MCP/LSP.
+Legacy reference implementation (schema tree, SQL editor, completions, query console) was
+used as reference for the scaffold and is preserved in git history.
+The `extension/` scaffold (built 2026-03-11) replaces it with HTTP API calls.
 
 ### Block 2 — Protocol & Parsers (Days 11-25)
 **Goal:** SemanticSnapshot spec published standalone. Remaining parsers. Spec documentation.
@@ -446,11 +463,11 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 - **2026-03-07:** Client reference strip (Phases 1-3) + git history squash — repo is clean, pre-commit hook active
 - **2026-03-07:** Sprint plan locked — Phase A complete, Phase B testing sprint week of March 9
 - **2026-03-06:** Delivery surface expansion — `get_schema`, `build_sql`, `boyce-init`, Direct CLI, HTTP API (52 new tests)
-- **2026-03-05:** Full codebase rename `datashark-protocol` → `boyce` (package, module, env vars, MCP tools, docs, CI)
+- **2026-03-05:** Full codebase rename to `boyce` (package, module, env vars, MCP tools, docs, CI)
 - **2026-03-04:** Name confirmed as Boyce. Domain `boyce.io` purchased.
 - **2026-03-01:** Scan CLI (`boyce-scan`) implemented — 10 tests
 - **2026-03-01:** All 10 parsers operational with 177 parser tests
-- **2026-02-28:** Legacy code quarantined to `legacy_v0/`, CI/CD rewritten, docs aligned
+- **2026-02-28:** Legacy code quarantined, CI/CD rewritten, docs aligned
 
 ### Key files
 | File | Role |

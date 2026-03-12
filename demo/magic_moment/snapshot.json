@@ -1,5 +1,5 @@
 {
-  "_comment": "SemanticSnapshot for the magic_moment demo. snapshot_id is a placeholder — verify_demo.py computes the real SHA-256 before ingesting. Pass this to the ingest_source MCP tool to load the schema into DataShark.",
+  "_comment": "SemanticSnapshot for the magic_moment demo. snapshot_id is a placeholder — verify_demo.py computes the real SHA-256 before ingesting. Pass this to the ingest_source MCP tool to load the schema into Boyce.",
   "snapshot_id": "COMPUTED",
   "source_system": "dbt",
   "schema_version": "v0.1",

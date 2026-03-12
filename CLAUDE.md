@@ -28,7 +28,7 @@ Follows the Mandatory Model Gate defined in `~/.claude/CLAUDE.md`.
 - Language: Python 3.10+ (repo `.venv` is 3.12 — system `python3` is 3.9, do not use it)
 - Database: Amazon Redshift 1.0.121035 (PostgreSQL 8.0.2 base)
 - Primary package: `boyce/` — headless FastMCP server
-- Legacy code: `legacy_v0/` — quarantined v1.0.0 package, do not import from it in new code
+- Legacy code: `legacy_v0/` deleted (2026-03-11) — preserved in git history only
 
 ## Commands
 
@@ -246,7 +246,7 @@ See `_strategy/plans/block-1b-vscode-extension.md` for full plan.
 - `process_request()` takes a single snapshot — multi-snapshot merge not yet implemented
 - `PostgresAdapter` only supports asyncpg (Postgres/Redshift) — no BigQuery or DuckDB live adapter yet
 - CI/CD workflows (`.github/workflows/`) reference stale paths — must be updated before enabling CI
-- `legacy_v0/src/datashark/` v1.0.0 package — do not import from it in new code
+- `legacy_v0/` has been deleted (2026-03-11) — historical code preserved in git history only
 
 ## Workflow Rules
 - Always verify `python boyce/tests/verify_eyes.py` passes before and after changes
