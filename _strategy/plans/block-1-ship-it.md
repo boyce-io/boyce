@@ -38,18 +38,18 @@ All engineering work done. No open items.
 
 ### Mon-Tue March 9-10 — Claude Code prep
 
-- [ ] Integration guides written and verified:
+- [x] Integration guides written and verified:
   - Claude Desktop (`claude_desktop_config.json` snippet, 3 steps)
   - Cursor (`.cursor/mcp.json` config)
   - Claude Code (`.claude/settings.json` MCP config)
   - Cline (VS Code — MCP-native, Path 1, no LLM key needed)
   - Continue.dev (VS Code — same as Cline)
   - Local LLM (Ollama/vLLM via `BOYCE_PROVIDER=ollama`)
-- [ ] Docker Compose for Pagila operational (`docker compose up` → Postgres with 15 tables, realistic FK graph)
-- [ ] Validation query battery written (`boyce/tests/validation/query_battery.md`):
+- [x] Docker Compose for Pagila operational (`docker compose up` → Postgres with 15 tables, realistic FK graph)
+- [x] Validation query battery written (`boyce/tests/validation/query_battery.md`):
   - Category A: structured capability tests (simple aggregation, multi-join, NULL trap, schema exploration, dialect edge case)
   - Category B: real-world prompts by persona (junior analyst, staff engineer, non-technical stakeholder)
-- [ ] Testing runbook written (`boyce/tests/validation/testing_runbook.md`): what to do, in what order, what to record, how to log failures
+- [x] Testing runbook written (`boyce/tests/validation/testing_runbook.md`): what to do, in what order, what to record, how to log failures
 
 ### Wed March 11 — Will (full day, morning start)
 
