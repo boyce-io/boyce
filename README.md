@@ -265,7 +265,7 @@ The `ingest_source` tool accepts a `SemanticSnapshot` JSON dict. Minimal example
 }
 ```
 
-See `boyce/tests/live_fire/mock_snapshot.json` for a complete multi-entity example.
+See `boyce/tests/live_fire/mock_snapshot.json` for a complete field/entity example.
 
 ---
 
@@ -310,6 +310,15 @@ _management_documents/          ← Architecture docs and decision records
 | Audit logging (append-only JSONL) | Operational |
 | Business definitions (`ingest_definition`) | Operational |
 | Multi-snapshot merge | Planned |
+
+---
+
+## Support
+
+- **Troubleshooting guide:** [docs/troubleshooting.md](docs/troubleshooting.md)
+- **Bug reports:** [GitHub Issues](https://github.com/boyce-io/boyce/issues/new?template=bug_report.yml)
+- **Setup help:** [GitHub Issues](https://github.com/boyce-io/boyce/issues/new?template=setup_help.yml)
+- **Email:** [will@boyce.io](mailto:will@boyce.io) — for issues involving credentials or sensitive config
 
 ---
 

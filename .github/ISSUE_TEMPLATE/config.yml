@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Email support
+    url: mailto:will@boyce.io
+    about: Direct support — use for issues involving credentials or sensitive config
+  - name: Troubleshooting guide
+    url: https://github.com/boyce-io/boyce/blob/main/docs/troubleshooting.md
+    about: Common setup issues and fixes

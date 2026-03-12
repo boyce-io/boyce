@@ -351,6 +351,17 @@ CEO Directive fully satisfied.
 - [ ] Content: Story 2 (trust/C-suite) — Null Trap technical essay
 - [ ] **VS Code extension** — thin TypeScript GUI over HTTP API, marketplace publish (Block 1b)
 
+**COMPLETE — Support Readiness (2026-03-11)**
+
+Pre-publish support infrastructure in place:
+- `.github/ISSUE_TEMPLATE/bug_report.yml` — structured bug report form
+- `.github/ISSUE_TEMPLATE/feature_request.yml` — feature request form
+- `.github/ISSUE_TEMPLATE/setup_help.yml` — setup/connection troubleshooting form
+- `.github/ISSUE_TEMPLATE/config.yml` — links to FAQ and will@boyce.io support email
+- `docs/troubleshooting.md` — comprehensive FAQ covering install, boyce-init, MCP setup,
+  snapshot issues, NL→SQL, DB connection, HTTP API
+- `README.md` — Support section added, links to issue templates and FAQ
+
 **Gate:** Will has personally tested all surfaces. `pip install boyce` works in a clean env. Real queries produce correct results. Version decision made by Will on Thursday March 12.
 
 #### Block 1b — VS Code Extension

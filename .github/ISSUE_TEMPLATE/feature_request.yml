@@ -1,0 +1,51 @@
+name: Feature Request
+description: Suggest a new capability or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We're especially interested in new source parsers, dialect support, and real-world use cases
+        that expose gaps in the semantic model. The more concrete the problem statement, the better.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation where Boyce falls short today.
+      placeholder: "When I have a Prisma schema with polymorphic relations, Boyce can't..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to see?
+      description: Your proposed solution or capability.
+      placeholder: "A parser that handles polymorphic relation tables and maps them to join weights..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - New source parser
+        - SQL dialect support
+        - NL→SQL accuracy
+        - SemanticSnapshot schema
+        - MCP tool behavior
+        - CLI / boyce-init / boyce-scan
+        - HTTP API
+        - VS Code extension
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Example data, schemas, or anything that helps us understand the use case.

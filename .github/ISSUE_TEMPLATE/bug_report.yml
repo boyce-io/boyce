@@ -1,0 +1,88 @@
+name: Bug Report
+description: Something isn't working correctly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in as much detail as you can — it helps us fix things faster.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: "When I run `boyce ask 'show me all orders'`, I get..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: "I expected SQL to be generated and returned."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands or steps that trigger the bug.
+      placeholder: |
+        1. Run `boyce-init`
+        2. Run `boyce ask "show me all orders"`
+        3. See error: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: snapshot
+    attributes:
+      label: SemanticSnapshot (if relevant)
+      description: Paste a minimal snapshot that reproduces the issue, or describe your source type (dbt, DDL, etc.)
+      render: json
+
+  - type: input
+    id: boyce_version
+    attributes:
+      label: Boyce version
+      placeholder: "`pip show boyce | grep Version`"
+    validations:
+      required: true
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      placeholder: "`python --version`"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mcp_host
+    attributes:
+      label: MCP host (if applicable)
+      options:
+        - Claude Desktop
+        - Cursor
+        - Claude Code
+        - Cline
+        - Continue.dev
+        - HTTP API / CLI (no MCP host)
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output or logs
+      description: Paste any error messages or stack traces here.
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might be relevant.

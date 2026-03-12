@@ -1,0 +1,82 @@
+name: Setup Help
+description: Can't get Boyce connected or configured
+labels: ["setup"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening an issue, check the [troubleshooting guide](../../docs/troubleshooting.md).
+
+        If you're still stuck, fill in the details below and we'll help you get connected.
+
+  - type: dropdown
+    id: setup_stage
+    attributes:
+      label: Where are you stuck?
+      options:
+        - Installing Boyce (`pip install boyce`)
+        - Running `boyce-init`
+        - MCP host not connecting (Claude Desktop, Cursor, etc.)
+        - `get_schema` returns no tables / wrong tables
+        - NL→SQL not working (LLM configuration)
+        - Database connection / EXPLAIN pre-flight
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_tried
+    attributes:
+      label: What have you tried?
+      description: Commands you ran, config you set, errors you saw.
+      placeholder: |
+        1. Ran `boyce-init` — it detected Claude Desktop and wrote the config
+        2. Restarted Claude Desktop
+        3. Asked Claude to call `get_schema` — got "tool not found" error
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Your MCP config (redact credentials)
+      description: The relevant block from your MCP host config (claude_desktop_config.json, .cursor/mcp.json, etc.)
+      render: json
+
+  - type: input
+    id: boyce_version
+    attributes:
+      label: Boyce version
+      placeholder: "`pip show boyce | grep Version`"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mcp_host
+    attributes:
+      label: MCP host
+      options:
+        - Claude Desktop
+        - Cursor
+        - Claude Code
+        - Cline
+        - Continue.dev
+        - HTTP API / CLI (no MCP host)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "macOS 14.3 / Ubuntu 22.04 / Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: Any error messages from the MCP host or terminal.
+      render: shell
