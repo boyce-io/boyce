@@ -302,10 +302,10 @@ See `_strategy/plans/block-1-ship-it.md` for detailed plan.
 **Hard requirement: Will personally tests before anything is published or submitted.**
 
 *Mon-Tue March 9-10 (Claude Code prep):*
-- [ ] Integration guides written and verified (Claude Desktop, Cursor, Claude Code, Cline, Continue.dev)
-- [ ] Docker Compose for Pagila operational (`docker compose up` → Postgres + 15 tables)
-- [ ] Validation query battery written (structured capability tests + real-world prompts by persona)
-- [ ] Testing runbook ready (what to do, in what order, what to record)
+- [x] Integration guides written and verified (Claude Desktop, Cursor, Claude Code, Cline, Continue.dev)
+- [x] Docker Compose for Pagila operational (`docker compose up` → Postgres + 15 tables)
+- [x] Validation query battery written (structured capability tests + real-world prompts by persona)
+- [x] Testing runbook ready (what to do, in what order, what to record)
 
 *Wed March 11 (Will — full day):*
 - [ ] Integration test: `boyce-init` + MCP connection across all hosts
@@ -437,10 +437,11 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 | Direct CLI | `boyce ask "..."` | Shell scripts, one-off queries |
 | Conversational CLI | `boyce chat "..."` | Interactive terminal use |
 | HTTP REST | `boyce serve --http` | VS Code extension, web dashboards, cron jobs |
-| VS Code extension | Marketplace install | 30M+ VS Code users — first monetization surface (Block 1b, planned) |
+| VS Code extension | Marketplace install | 30M+ VS Code users — first monetization surface (Block 1b, scaffold built 2026-03-11) |
 | Python library | `from boyce import kernel` | Custom agent integrations |
 
 ### Recent completions
+- **2026-03-11:** VS Code extension scaffold — `extension/` directory, 11 files, 1,424 LOC TypeScript, compiles clean. Steps 1-4 of Block 1b (scaffold, HTTP client, chat panel, schema tree) built in one session.
 - **2026-03-07:** `src` layout migration — `boyce/boyce/` → `boyce/src/boyce/`; CWD namespace conflict eliminated; 260 tests green
 - **2026-03-07:** Client reference strip (Phases 1-3) + git history squash — repo is clean, pre-commit hook active
 - **2026-03-07:** Sprint plan locked — Phase A complete, Phase B testing sprint week of March 9
@@ -471,6 +472,9 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 | `boyce/tests/verify_eyes.py` | 15 offline tests (~4s) |
 | `boyce/tests/test_parsers.py` | Parser tests (all 10 parsers) |
 | `boyce/tests/test_scan.py` | Scan CLI tests (10 tests) |
+| `extension/src/extension.ts` | VS Code extension entry point (5 commands, status bar) |
+| `extension/src/client.ts` | `BoyceClient` — HTTP client for all 8 API endpoints |
+| `extension/src/process.ts` | `BoyceProcess` — auto-spawns `boyce serve --http` |
 | `_strategy/MASTER.md` | **This file** |
 
 ---

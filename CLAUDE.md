@@ -162,12 +162,14 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 | Validation + hashing | `validation.py` — `validate_snapshot()`, `_compute_snapshot_hash()` |
 | Audit log | `audit.py` — `AuditLog` (append-only JSONL) |
 
-### MCP Tools (6)
+### MCP Tools (8)
 
 | Tool | Purpose |
 |---|---|
 | `ingest_source` | Parse + ingest a SemanticSnapshot from any supported format |
 | `ingest_definition` | Store a certified business definition (injected into planner context at query time) |
+| `get_schema` | Return full schema (entities, fields, joins) for host-LLM reasoning |
+| `build_sql` | Deterministic SQL from StructuredFilter (no Boyce LLM needed) |
 | `solve_path` | Find optimal semantic join path between two entities via Dijkstra |
 | `ask_boyce` | Full NL → SQL pipeline with NULL trap detection and EXPLAIN pre-flight |
 | `query_database` | Execute read-only SELECT against live database (two-level write rejection) |
@@ -203,6 +205,40 @@ Self-contained "Null Trap" scenario for recording the magic-moment demo:
 - Use `GETDATE()` not `NOW()` for current timestamp
 - No `RECURSIVE` CTEs
 - `VARCHAR` max is 65535
+
+### VS Code Extension — `extension/`
+
+Thin TypeScript GUI over `boyce serve --http`. All intelligence stays server-side.
+The extension never touches LLMs or credentials directly.
+
+```bash
+# Dev setup
+cd extension && npm install
+
+# Compile
+npm run compile          # tsc -p ./
+npm run watch            # tsc -watch
+
+# Package for marketplace
+npm run package          # produces .vsix
+
+# Lint
+npm run lint
+```
+
+| File | Purpose |
+|------|---------|
+| `src/extension.ts` | Main entry — 5 commands, status bar, schema tree registration |
+| `src/client.ts` | `BoyceClient` — typed HTTP client for all 8 API endpoints |
+| `src/process.ts` | `BoyceProcess` — auto-spawns `boyce serve --http`, health polling, graceful shutdown |
+| `src/types.ts` | TypeScript interfaces mirroring `boyce.http_api` + `boyce.types` contracts |
+| `src/panels/chatPanel.ts` | Webview chat panel — NL input → `/chat` → rendered SQL with "Run SQL" buttons |
+| `src/providers/schemaTreeProvider.ts` | Sidebar tree: entities → fields, type-aware icons, FK annotations |
+| `package.json` | VS Code manifest — commands, activity bar, keybindings, configuration |
+
+**Status:** Scaffold complete (compiles clean, zero errors). Steps 1-4 of Block 1b plan built.
+Remaining: SQL editor integration (CodeLens), setup wizard, marketplace publish.
+See `_strategy/plans/block-1b-vscode-extension.md` for full plan.
 
 ## Known Gaps (check before working in these areas)
 - `pytest` is not in `pyproject.toml` deps — CI installs it separately
