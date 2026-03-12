@@ -1,0 +1,143 @@
+{
+  "name": "boyce",
+  "displayName": "Boyce",
+  "description": "Privacy-first SQL compiler for AI agents — semantic protocol, safety layer, deterministic SQL.",
+  "version": "0.1.0",
+  "publisher": "convergent-methods",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boyce-io/boyce"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Data Science",
+    "Other"
+  ],
+  "keywords": [
+    "sql",
+    "database",
+    "semantic",
+    "mcp",
+    "ai",
+    "redshift",
+    "postgres"
+  ],
+  "activationEvents": [
+    "workspaceContains:.boyce/config.json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "boyce.connect",
+        "title": "Boyce: Connect"
+      },
+      {
+        "command": "boyce.ask",
+        "title": "Boyce: Ask a Question"
+      },
+      {
+        "command": "boyce.openChat",
+        "title": "Boyce: Open Chat Panel"
+      },
+      {
+        "command": "boyce.refreshSchema",
+        "title": "Boyce: Refresh Schema",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "boyce.runQuery",
+        "title": "Boyce: Run SQL Query"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "boyce-explorer",
+          "title": "Boyce",
+          "icon": "resources/boyce-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "boyce-explorer": [
+        {
+          "id": "boyce.schemaTree",
+          "name": "Semantic Schema",
+          "contextualTitle": "Boyce Schema"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "boyce.refreshSchema",
+          "when": "view == boyce.schemaTree",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "boyce.runQuery",
+          "when": "view == boyce.schemaTree && viewItem == entity",
+          "group": "1_query@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Boyce",
+      "properties": {
+        "boyce.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8741",
+          "description": "URL of the Boyce HTTP API server"
+        },
+        "boyce.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start `boyce serve --http` when the extension activates"
+        },
+        "boyce.defaultDialect": {
+          "type": "string",
+          "default": "redshift",
+          "enum": ["redshift", "postgres", "duckdb", "bigquery"],
+          "description": "Default SQL dialect for generated queries"
+        },
+        "boyce.snapshotName": {
+          "type": "string",
+          "default": "default",
+          "description": "Default snapshot name to use for schema and queries"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "boyce.runQuery",
+        "key": "cmd+enter",
+        "mac": "cmd+enter",
+        "win": "ctrl+enter",
+        "linux": "ctrl+enter",
+        "when": "editorTextFocus && editorLangId == sql"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0",
+    "@vscode/vsce": "^2.24.0"
+  }
+}
