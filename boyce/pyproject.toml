@@ -25,10 +25,6 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-[project.urls]
-Homepage = "https://boyce.io"
-Repository = "https://github.com/boyce-io/boyce"
-"Bug Tracker" = "https://github.com/boyce-io/boyce/issues"
 dependencies = [
     "mcp>=1.0.0",
     "pydantic>=2.0",
@@ -37,6 +33,11 @@ dependencies = [
     "PyYAML>=6.0",
     "litellm>=1.0.0",
 ]
+
+[project.urls]
+Homepage = "https://boyce.io"
+Repository = "https://github.com/boyce-io/boyce"
+"Bug Tracker" = "https://github.com/boyce-io/boyce/issues"
 
 [project.optional-dependencies]
 postgres = ["asyncpg>=0.29.0"]
