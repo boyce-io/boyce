@@ -101,7 +101,7 @@ def _check_prerequisites() -> None:
         )
 
     try:
-        from boyce_protocol.adapters.postgres import PostgresAdapter  # noqa: F401
+        from boyce.adapters.postgres import PostgresAdapter  # noqa: F401
     except ImportError as exc:
         _die(f"boyce not importable: {exc}\n    pip install -e boyce/")
 
@@ -182,8 +182,8 @@ def _build_snapshot() -> tuple:
     Load snapshot.json, compute the canonical SHA-256 snapshot_id,
     return (snapshot_data_dict, SemanticSnapshot_object).
     """
-    from boyce_protocol.types import SemanticSnapshot
-    from boyce_protocol.validation import _compute_snapshot_hash
+    from boyce.types import SemanticSnapshot
+    from boyce.validation import _compute_snapshot_hash
 
     data = json.loads(_SNAPSHOT_JSON.read_text())
     data.pop("_comment", None)
@@ -259,7 +259,7 @@ def _print_cancelled_login_profile(profile: Dict[str, Any], max_days: int) -> No
 # ---------------------------------------------------------------------------
 
 async def _assert_status_profile(adapter: Any) -> None:
-    from boyce_protocol.adapters.postgres import PostgresAdapter
+    from boyce.adapters.postgres import PostgresAdapter
     assert isinstance(adapter, PostgresAdapter)
 
     profile = await adapter.profile_column("subscriptions", "status")
@@ -349,8 +349,8 @@ def _ingest_snapshot_to_local_context() -> str:
     can serve it when Claude Desktop calls ingest_source.
     Returns the snapshot_id.
     """
-    from boyce_protocol.store import SnapshotStore
-    from boyce_protocol.validation import validate_snapshot
+    from boyce.store import SnapshotStore
+    from boyce.validation import validate_snapshot
 
     local_context = _PROTO_ROOT / "_local_context"
     store = SnapshotStore(local_context)
@@ -372,7 +372,7 @@ async def run_trap_reveal() -> None:
     skip_docker = os.environ.get("SKIP_DOCKER") == "1" or os.environ.get("BOYCE_DB_URL")
 
     print(f"\n{SEP}")
-    print(f"{BOLD}OPERATION TRAP REVEAL — Boyce Magic Moment Demo{RESET}")
+    print(f"{BOLD}Boyce Magic Moment Demo — NULL Trap Reveal{RESET}")
     print(SEP)
     print()
     print("  Scenario: Product manager asks — 'Delete all cancelled")
@@ -395,7 +395,7 @@ async def run_trap_reveal() -> None:
 
     teardown_docker = not skip_docker
 
-    from boyce_protocol.adapters.postgres import PostgresAdapter
+    from boyce.adapters.postgres import PostgresAdapter
 
     adapter = PostgresAdapter(_DB_URL)
 

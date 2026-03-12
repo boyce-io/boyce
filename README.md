@@ -289,7 +289,6 @@ boyce/                          ← PRIMARY — headless FastMCP server + pip pa
     ├── test_parsers.py         ← Parser tests (all 10 parsers)
     ├── test_scan.py            ← Scan CLI tests
     └── live_fire/              ← Docker Compose integration tests
-legacy_v0/                      ← v1.0.0 Python package — historical reference
 _management_documents/          ← Architecture docs and decision records
 ```
 

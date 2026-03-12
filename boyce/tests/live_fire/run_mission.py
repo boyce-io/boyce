@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-run_mission.py — Operation Live Fire
-End-to-end integration test for the Boyce protocol.
+run_mission.py — Boyce End-to-End Integration Test
+Full pipeline test for the Boyce protocol.
 
 Pipeline under test:
   Postgres DB (Docker) → SemanticSnapshot (ingested) →
@@ -46,7 +46,7 @@ _LOCAL_CONTEXT = _PROTO_ROOT / "_local_context"    # mirrors server.py's _LOCAL_
 
 _DB_URL = "postgresql://boyce:password@localhost:5432/live_fire_db"
 _SNAPSHOT_NAME = "live_fire"
-_NL_QUERY = "List all active agents with their kill counts"
+_NL_QUERY = "List all active employees and their completed project counts"
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ async def run_mission() -> None:
 
     _sep = "=" * 60
     print(f"\n{_sep}")
-    print("OPERATION LIVE FIRE — Boyce End-to-End Integration Test")
+    print("Boyce End-to-End Integration Test")
     print(_sep)
 
     # ------------------------------------------------------------------
@@ -238,9 +238,9 @@ async def run_mission() -> None:
         # ------------------------------------------------------------------
         # Step 3: Seed
         # ------------------------------------------------------------------
-        print("\n[3/6] Seeding `agents` table ...")
+        print("\n[3/6] Seeding `employees` table ...")
         await _seed_db(_DB_URL)
-        print("      ✓ Seeded: 3 rows (007 / Vesper / Nomi)")
+        print("      ✓ Seeded: 3 rows (Alice / Bob / Carol)")
 
         # ------------------------------------------------------------------
         # Step 4: Ingest snapshot into SemanticGraph
@@ -361,18 +361,18 @@ async def run_mission() -> None:
         assert status == "verified", f"Unexpected validation.status: {status!r}"
         print(f"      ✓ EXPLAIN verified  (cost_estimate={validation['cost_estimate']})")
 
-        # Assertion 3: SQL references the agents table
-        assert "agents" in sql.lower(), (
-            f"Expected 'agents' in generated SQL, got:\n{sql}"
+        # Assertion 3: SQL references the employees table
+        assert "employees" in sql.lower(), (
+            f"Expected 'employees' in generated SQL, got:\n{sql}"
         )
-        print("      ✓ SQL references 'agents' table")
+        print("      ✓ SQL references 'employees' table")
 
         print(f"\n      Generated SQL:\n")
         for line in sql.splitlines():
             print(f"        {line}")
 
         print(f"\n{_sep}")
-        print("✅  MISSION COMPLETE — All checks passed.")
+        print("✅  All checks passed.")
         print(_sep)
 
     finally:

@@ -4,24 +4,25 @@
   "source_system": "dbt",
   "schema_version": "v0.1",
   "entities": {
-    "entity:agents": {
-      "id": "entity:agents",
-      "name": "agents",
+    "entity:employees": {
+      "id": "entity:employees",
+      "name": "employees",
       "schema_name": "public",
-      "description": "Intelligence agents roster. Each row is one agent.",
-      "grain": "agent_id",
+      "description": "Employee records. One row per employee.",
+      "grain": "employee_id",
       "fields": [
-        "field:agents:id",
-        "field:agents:codename",
-        "field:agents:status",
-        "field:agents:kill_count"
+        "field:employees:id",
+        "field:employees:name",
+        "field:employees:department",
+        "field:employees:status",
+        "field:employees:projects_completed"
       ]
     }
   },
   "fields": {
-    "field:agents:id": {
-      "id": "field:agents:id",
-      "entity_id": "entity:agents",
+    "field:employees:id": {
+      "id": "field:employees:id",
+      "entity_id": "entity:employees",
       "name": "id",
       "field_type": "ID",
       "data_type": "INTEGER",
@@ -29,33 +30,42 @@
       "primary_key": true,
       "description": "Primary key — auto-generated serial"
     },
-    "field:agents:codename": {
-      "id": "field:agents:codename",
-      "entity_id": "entity:agents",
-      "name": "codename",
+    "field:employees:name": {
+      "id": "field:employees:name",
+      "entity_id": "entity:employees",
+      "name": "name",
       "field_type": "DIMENSION",
       "data_type": "VARCHAR(50)",
       "nullable": false,
-      "description": "Agent code name (e.g. '007', 'Nomi')"
+      "description": "Employee full name"
     },
-    "field:agents:status": {
-      "id": "field:agents:status",
-      "entity_id": "entity:agents",
+    "field:employees:department": {
+      "id": "field:employees:department",
+      "entity_id": "entity:employees",
+      "name": "department",
+      "field_type": "DIMENSION",
+      "data_type": "VARCHAR(50)",
+      "nullable": false,
+      "description": "Department the employee belongs to"
+    },
+    "field:employees:status": {
+      "id": "field:employees:status",
+      "entity_id": "entity:employees",
       "name": "status",
       "field_type": "DIMENSION",
       "data_type": "VARCHAR(20)",
       "nullable": false,
-      "description": "Current operational status",
+      "description": "Current employment status",
       "valid_values": ["Active", "Inactive"]
     },
-    "field:agents:kill_count": {
-      "id": "field:agents:kill_count",
-      "entity_id": "entity:agents",
-      "name": "kill_count",
+    "field:employees:projects_completed": {
+      "id": "field:employees:projects_completed",
+      "entity_id": "entity:employees",
+      "name": "projects_completed",
       "field_type": "MEASURE",
       "data_type": "INTEGER",
       "nullable": false,
-      "description": "Total confirmed eliminations"
+      "description": "Total number of completed projects"
     }
   },
   "joins": [],
