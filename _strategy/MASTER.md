@@ -357,10 +357,15 @@ Pre-publish support infrastructure in place:
 - `.github/ISSUE_TEMPLATE/bug_report.yml` — structured bug report form
 - `.github/ISSUE_TEMPLATE/feature_request.yml` — feature request form
 - `.github/ISSUE_TEMPLATE/setup_help.yml` — setup/connection troubleshooting form
-- `.github/ISSUE_TEMPLATE/config.yml` — links to FAQ and will@boyce.io support email
+- `.github/ISSUE_TEMPLATE/config.yml` — links to FAQ and support email
 - `docs/troubleshooting.md` — comprehensive FAQ covering install, boyce-init, MCP setup,
   snapshot issues, NL→SQL, DB connection, HTTP API
 - `README.md` — Support section added, links to issue templates and FAQ
+
+**ACTION NEEDED:** Issue templates and docs currently reference will@boyce.io,
+but boyce.io email is not yet functional (domain in transfer). Temporarily
+replace all will@boyce.io references with will@convergentmethods.com before
+publish. Swap back to will@boyce.io once domain DNS is configured.
 
 **Gate:** Will has personally tested all surfaces. `pip install boyce` works in a clean env. Real queries produce correct results. Version decision made by Will on Thursday March 12.
 
