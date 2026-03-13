@@ -1,8 +1,9 @@
 """
 boyce init — Interactive MCP host setup wizard.
 
-Detects installed MCP hosts (Claude Desktop, Cursor, Claude Code), generates
-the boyce server entry, and merges it into each config file.
+Detects installed MCP hosts (Claude Desktop, Cursor, Claude Code, VS Code,
+JetBrains/DataGrip, Windsurf), generates the boyce server entry, and merges
+it into each config file.
 
 Usage:
     boyce-init
@@ -14,6 +15,7 @@ No third-party dependencies — stdlib only.
 from __future__ import annotations
 
 import json
+import platform
 import shutil
 import sys
 from dataclasses import dataclass
@@ -32,32 +34,80 @@ class MCPHost:
 
     name: str
     config_path: Path
-    project_level: bool   # True = path is CWD-relative (Cursor, Claude Code)
-    exists: bool          # config file exists on disk
-    has_boyce: bool       # "boyce" key already present in mcpServers
+    project_level: bool        # True = path is CWD-relative (Cursor, Claude Code, VS Code, JetBrains)
+    exists: bool               # config file exists on disk
+    has_boyce: bool            # "boyce" key already present in the servers dict
+    servers_key: str = "mcpServers"    # top-level JSON key; VS Code uses "servers"
+    post_config_note: Optional[str] = None  # printed after successful config
 
 
 # ---------------------------------------------------------------------------
 # Host detection
 # ---------------------------------------------------------------------------
 
+
+def _claude_desktop_path() -> Path:
+    """Return the Claude Desktop config path for the current OS."""
+    system = platform.system()
+    if system == "Windows":
+        appdata = Path.home() / "AppData" / "Roaming"
+        return appdata / "Claude" / "claude_desktop_config.json"
+    if system == "Linux":
+        return Path.home() / ".config" / "Claude" / "claude_desktop_config.json"
+    # macOS default
+    return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+
+
+def _windsurf_path() -> Path:
+    """Return the Windsurf global config path for the current OS."""
+    if platform.system() == "Windows":
+        return Path.home() / "AppData" / "Roaming" / ".codeium" / "windsurf" / "mcp_config.json"
+    return Path.home() / ".codeium" / "windsurf" / "mcp_config.json"
+
+
 # Resolved lazily so tests can patch Path.cwd()
 def _host_specs() -> List[Dict]:
     return [
         {
             "name": "Claude Desktop",
-            "path": Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json",
+            "path": _claude_desktop_path(),
             "project_level": False,
+            "servers_key": "mcpServers",
         },
         {
             "name": "Cursor",
             "path": Path.cwd() / ".cursor" / "mcp.json",
             "project_level": True,
+            "servers_key": "mcpServers",
         },
         {
             "name": "Claude Code",
             "path": Path.cwd() / ".claude" / "settings.json",
             "project_level": True,
+            "servers_key": "mcpServers",
+        },
+        {
+            "name": "VS Code",
+            "path": Path.cwd() / ".vscode" / "mcp.json",
+            "project_level": True,
+            "servers_key": "servers",  # VS Code uses "servers" not "mcpServers"
+        },
+        {
+            "name": "JetBrains",
+            "path": Path.cwd() / ".jb-mcp.json",
+            "project_level": True,
+            "servers_key": "mcpServers",
+            "detection_hint": Path.cwd() / ".idea",  # detect by .idea/ presence
+            "post_config_note": (
+                "  Tip: You can also configure in your JetBrains IDE:\n"
+                "       Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add"
+            ),
+        },
+        {
+            "name": "Windsurf",
+            "path": _windsurf_path(),
+            "project_level": False,
+            "servers_key": "mcpServers",
         },
     ]
 
@@ -78,13 +128,19 @@ def detect_hosts(specs: Optional[List[Dict]] = None) -> List[MCPHost]:
     hosts: List[MCPHost] = []
     for spec in specs:
         path: Path = spec["path"]
-        exists = path.exists()
+        servers_key: str = spec.get("servers_key", "mcpServers")
+        detection_hint: Optional[Path] = spec.get("detection_hint")
+
+        # A host is "found" if:
+        # - its config file exists, OR
+        # - its detection_hint directory exists (e.g. .idea/ for JetBrains)
+        exists = path.exists() or (detection_hint is not None and detection_hint.is_dir())
         has_boyce = False
 
-        if exists:
+        if path.exists():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                has_boyce = "boyce" in data.get("mcpServers", {})
+                has_boyce = "boyce" in data.get(servers_key, {})
             except (json.JSONDecodeError, OSError):
                 pass
 
@@ -94,6 +150,8 @@ def detect_hosts(specs: Optional[List[Dict]] = None) -> List[MCPHost]:
             project_level=spec["project_level"],
             exists=exists,
             has_boyce=has_boyce,
+            servers_key=servers_key,
+            post_config_note=spec.get("post_config_note"),
         ))
 
     return hosts
@@ -189,18 +247,24 @@ def generate_server_entry(
 # ---------------------------------------------------------------------------
 
 
-def merge_config(config_path: Path, server_entry: dict) -> None:
+def merge_config(
+    config_path: Path,
+    server_entry: dict,
+    servers_key: str = "mcpServers",
+) -> None:
     """
     Merge the boyce server entry into an MCP host config file.
 
     Behaviour:
     - Creates the file (and parent directories) if it doesn't exist.
-    - Preserves all existing ``mcpServers`` entries.
+    - Preserves all existing server entries.
     - Overwrites the existing ``boyce`` entry if present.
 
     Args:
         config_path:  Path to the host config JSON file.
-        server_entry: Dict to set at ``mcpServers["boyce"]``.
+        server_entry: Dict to set at ``servers_key["boyce"]``.
+        servers_key:  Top-level JSON key for the servers dict.
+                      Defaults to "mcpServers". VS Code uses "servers".
     """
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -211,10 +275,10 @@ def merge_config(config_path: Path, server_entry: dict) -> None:
         except (json.JSONDecodeError, OSError):
             existing = {}
 
-    if "mcpServers" not in existing:
-        existing["mcpServers"] = {}
+    if servers_key not in existing:
+        existing[servers_key] = {}
 
-    existing["mcpServers"]["boyce"] = server_entry
+    existing[servers_key]["boyce"] = server_entry
     config_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
 
@@ -276,9 +340,9 @@ def run_wizard() -> int:
     db_url = input("DB URL: ").strip() or None
 
     # --- Optional: LLM config ---
-    print("\nAdd LLM config for self-contained ask_boyce?")
-    print("  MCP hosts (Claude Desktop, Cursor, Claude Code) do NOT need this —")
-    print("  the host's own LLM calls get_schema + build_sql directly.")
+    print("\nAdd LLM config for self-contained ask_boyce (NL mode)?")
+    print("  MCP hosts (Claude, Cursor, VS Code, JetBrains, Windsurf) do NOT need this —")
+    print("  the host's own LLM calls get_schema + ask_boyce directly.")
     raw_llm = input("Add LLM config? [y/N]: ").strip().lower()
     want_llm = raw_llm in ("y", "yes")
 
@@ -302,8 +366,10 @@ def run_wizard() -> int:
     success_count = 0
     for host in selected:
         try:
-            merge_config(host.config_path, server_entry)
+            merge_config(host.config_path, server_entry, servers_key=host.servers_key)
             print(f"  ✓ {host.name}  →  {host.config_path}")
+            if host.post_config_note:
+                print(host.post_config_note)
             success_count += 1
         except Exception as exc:
             print(f"  ✗ {host.name}: {exc}")

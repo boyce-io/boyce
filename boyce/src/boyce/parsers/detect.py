@@ -67,6 +67,8 @@ def parse_from_path(source_path: str | Path) -> SemanticSnapshot:
 
     path = Path(source_path)
 
+    resolved_path_str = str(path.resolve())
+
     # Pre-check: if it's a JSON file with all SemanticSnapshot keys, load it directly
     # rather than running it through the source-parser pipeline.
     if path.suffix.lower() == ".json" and path.is_file():
@@ -86,8 +88,21 @@ def parse_from_path(source_path: str | Path) -> SemanticSnapshot:
                         f"stored '{snapshot.snapshot_id}' does not match "
                         f"computed '{real_hash}'."
                     )
+                # Track source path for freshness checks
+                if "source_path" not in snapshot.metadata:
+                    updated_meta = dict(snapshot.metadata)
+                    updated_meta["source_path"] = resolved_path_str
+                    snapshot = snapshot.model_copy(update={"metadata": updated_meta})
                 return snapshot
         except (json.JSONDecodeError, KeyError):
             pass  # Not a valid snapshot JSON — fall through to registry
 
-    return get_default_registry().parse(path)
+    snapshot = get_default_registry().parse(path)
+
+    # Track source path for freshness checks (Tier 2)
+    if "source_path" not in snapshot.metadata:
+        updated_meta = dict(snapshot.metadata)
+        updated_meta["source_path"] = resolved_path_str
+        snapshot = snapshot.model_copy(update={"metadata": updated_meta})
+
+    return snapshot

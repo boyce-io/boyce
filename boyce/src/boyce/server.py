@@ -2,16 +2,19 @@
 """
 Boyce — FastMCP Server
 
-Headless reference implementation. Exposes eight tools:
+Headless reference implementation. Exposes seven MCP tools:
 
-    ingest_source      — Parse + ingest a snapshot from a dbt manifest, dbt project, or LookML file.
+    ingest_source      — Parse + ingest a snapshot from any supported schema format.
     ingest_definition  — Store a certified business definition; injected into planner at query time.
     get_schema         — Return full schema context + StructuredFilter docs (for host-LLM use).
-    build_sql          — StructuredFilter → SQL (deterministic, no LLM needed in Boyce).
-    solve_path         — Find the optimal join path between two entities (Dijkstra).
-    ask_boyce          — NL → SQL via QueryPlanner + kernel; EXPLAIN pre-flight if DB connected.
+    ask_boyce          — NL or StructuredFilter → SQL with NULL trap detection + EXPLAIN pre-flight.
+    validate_sql       — Validate raw SQL through the safety layer without executing it.
     query_database     — Execute a read-only SELECT against the live database.
     profile_data       — Profile a column (null %, distinct count, min/max).
+
+Internal functions (not MCP tools, callable from HTTP API / CLI):
+    build_sql          — StructuredFilter → SQL (deterministic, no LLM).
+    solve_path         — Find the optimal join path between two entities (Dijkstra).
 
 Run:
     python -m boyce.server
@@ -48,7 +51,8 @@ _STRUCTURED_FILTER_DOCS: str = """\
 ## StructuredFilter Format
 
 A StructuredFilter is the JSON contract between "intent" and "SQL generation".
-Pass one to `build_sql` and Boyce will produce deterministic SQL with no LLM call.
+Pass one to `ask_boyce` (via the `structured_filter` parameter) and Boyce will
+produce deterministic SQL with no LLM call on Boyce's side.
 
 ### Shape
 
@@ -98,6 +102,75 @@ Pass one to `build_sql` and Boyce will produce deterministic SQL with no LLM cal
 2. `metrics` require `grain_context.aggregation_required = true`.
 3. `join_path` is optional — Boyce resolves joins via Dijkstra if omitted.
 4. `dialect` defaults to `"redshift"`. Supported: `"redshift"`, `"postgres"`, `"duckdb"`, `"bigquery"`.
+
+### Examples
+
+**Example 1: Simple aggregation**
+User question: "Total revenue by product status"
+```json
+{
+  "concept_map": {
+    "entities": [{"entity_id": "entity:orders", "entity_name": "orders"}],
+    "fields": [],
+    "metrics": [{"metric_name": "revenue", "field_id": "field:orders:revenue",
+                  "aggregation_type": "SUM"}],
+    "dimensions": [{"field_id": "field:orders:status", "field_name": "status",
+                     "entity_id": "entity:orders"}],
+    "filters": []
+  },
+  "join_path": ["entity:orders"],
+  "grain_context": {"aggregation_required": true, "grouping_fields": ["status"]},
+  "policy_context": {"resolved_predicates": []},
+  "temporal_filters": [],
+  "dialect": "redshift"
+}
+```
+
+**Example 2: Filtered query with temporal range**
+User question: "Active customers in the last 6 months"
+```json
+{
+  "concept_map": {
+    "entities": [{"entity_id": "entity:customers", "entity_name": "customers"}],
+    "fields": [{"field_id": "field:customers:customer_id", "field_name": "customer_id",
+                 "entity_id": "entity:customers"}],
+    "metrics": [{"metric_name": "customer_id", "field_id": "field:customers:customer_id",
+                  "aggregation_type": "COUNT_DISTINCT"}],
+    "dimensions": [],
+    "filters": [{"field_id": "field:customers:status", "operator": "=",
+                  "value": "active", "entity_id": "entity:customers"}]
+  },
+  "join_path": ["entity:customers"],
+  "temporal_filters": [{"field_id": "field:customers:last_login",
+                          "operator": "trailing_interval",
+                          "value": {"value": 6, "unit": "month"}}],
+  "grain_context": {"aggregation_required": true, "grouping_fields": []},
+  "policy_context": {"resolved_predicates": []},
+  "dialect": "redshift"
+}
+```
+
+**Example 3: Multi-table join**
+User question: "Revenue by customer name"
+```json
+{
+  "concept_map": {
+    "entities": [{"entity_id": "entity:orders", "entity_name": "orders"},
+                 {"entity_id": "entity:customers", "entity_name": "customers"}],
+    "fields": [],
+    "metrics": [{"metric_name": "revenue", "field_id": "field:orders:revenue",
+                  "aggregation_type": "SUM"}],
+    "dimensions": [{"field_id": "field:customers:name", "field_name": "name",
+                     "entity_id": "entity:customers"}],
+    "filters": []
+  },
+  "join_path": ["entity:orders", "entity:customers"],
+  "grain_context": {"aggregation_required": true, "grouping_fields": ["name"]},
+  "policy_context": {"resolved_predicates": []},
+  "temporal_filters": [],
+  "dialect": "redshift"
+}
+```
 """
 
 
@@ -484,6 +557,239 @@ async def _run_sql_pipeline(
 
 
 # ---------------------------------------------------------------------------
+# Mode C schema guidance — returned by ask_boyce when no credentials configured
+# ---------------------------------------------------------------------------
+
+
+def _build_schema_guidance(
+    query: str,
+    snapshot: "SemanticSnapshot",
+    snapshot_name: str,
+) -> str:
+    """
+    Mode C fallback for ask_boyce: return schema context + StructuredFilter docs
+    so the host LLM can construct a filter and call back with structured_filter.
+
+    Scores entities by keyword overlap with the query (mirrors planner.py:131-138)
+    and returns the top-50 most relevant with full field details.
+    """
+    # Score entities by keyword overlap with query
+    query_words = set(re.findall(r"\b\w+\b", query.lower()))
+    entity_scores: List[tuple] = []
+    for eid, entity in snapshot.entities.items():
+        score = sum(1 for w in query_words if w in entity.name.lower())
+        if score > 0 or len(snapshot.entities) <= 50:
+            entity_scores.append((score, eid))
+    entity_scores.sort(reverse=True, key=lambda x: x[0])
+    top_entity_ids = [eid for _, eid in entity_scores[:50]]
+
+    # Build entity context with full field details
+    entities_out = []
+    for eid in top_entity_ids:
+        entity = snapshot.entities[eid]
+        fields_out = []
+        for fid in entity.fields:
+            field = snapshot.fields.get(fid)
+            if field:
+                fields_out.append({
+                    "field_id": field.id,
+                    "name": field.name,
+                    "field_type": field.field_type.value,
+                    "data_type": field.data_type,
+                    "nullable": field.nullable,
+                    "description": field.description,
+                })
+        entities_out.append({
+            "entity_id": eid,
+            "name": entity.name,
+            "description": entity.description,
+            "grain": entity.grain,
+            "fields": fields_out,
+        })
+
+    definitions_context = _definitions.as_context_string(snapshot_name)
+
+    return json.dumps({
+        "mode": "schema_guidance",
+        "message": (
+            "Boyce has no LLM credentials configured. "
+            "Use the schema context and StructuredFilter docs below to construct "
+            "a StructuredFilter, then call ask_boyce again with the "
+            "structured_filter parameter. No additional credentials are needed."
+        ),
+        "query": query,
+        "snapshot_name": snapshot_name,
+        "relevant_entities": entities_out,
+        "structured_filter_docs": _STRUCTURED_FILTER_DOCS,
+        "definitions_context": definitions_context or None,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Schema freshness helpers (Tier 2: mtime check, Tier 3: live DB drift)
+# ---------------------------------------------------------------------------
+
+# Track which snapshots have been freshness-checked this session
+_freshness_checked: set = set()
+_drift_checked: set = set()
+
+
+def _check_snapshot_freshness(snapshot_name: str) -> Optional[str]:
+    """
+    Check if a snapshot's source file has been modified since the snapshot was saved.
+
+    Returns a message string if the snapshot was auto-refreshed or is stale,
+    None if fresh or unable to check. Only runs once per snapshot per server session.
+
+    Tier 2 of schema freshness: session-start mtime check.
+    """
+    if snapshot_name in _freshness_checked:
+        return None
+    _freshness_checked.add(snapshot_name)
+
+    try:
+        snapshot = _store.load(snapshot_name)
+    except (FileNotFoundError, ValueError):
+        return None
+
+    source_path_str = snapshot.metadata.get("source_path")
+    if not source_path_str:
+        return None
+
+    source_path = Path(source_path_str)
+    if not source_path.exists():
+        logger.warning(
+            "Snapshot '%s' source file no longer exists: %s",
+            snapshot_name, source_path,
+        )
+        return None  # Don't warn — file might have been moved intentionally
+
+    # Compare source file mtime to snapshot file mtime
+    snapshot_file = _LOCAL_CONTEXT / f"{snapshot_name}.json"
+    if not snapshot_file.exists():
+        return None
+
+    source_mtime = source_path.stat().st_mtime
+    snapshot_mtime = snapshot_file.stat().st_mtime
+
+    if source_mtime <= snapshot_mtime:
+        return None  # Snapshot is fresh
+
+    age_seconds = source_mtime - snapshot_mtime
+    age_human = (
+        f"{int(age_seconds // 3600)}h {int((age_seconds % 3600) // 60)}m"
+        if age_seconds > 3600
+        else f"{int(age_seconds // 60)}m"
+    )
+    warning = (
+        f"Source file '{source_path.name}' has been modified since snapshot "
+        f"'{snapshot_name}' was created ({age_human} newer). "
+        f"Run ingest_source to refresh."
+    )
+    logger.info("Snapshot freshness: %s", warning)
+
+    # Attempt auto re-ingest
+    try:
+        from .parsers import parse_from_path  # noqa: PLC0415
+        new_snapshot = parse_from_path(str(source_path))
+        if new_snapshot.snapshot_id != snapshot.snapshot_id:
+            _store.save(new_snapshot, snapshot_name)
+            if new_snapshot.snapshot_id not in _graph.snapshots:
+                _graph.add_snapshot(new_snapshot)
+            logger.info(
+                "Auto re-ingested '%s': snapshot_id changed %s → %s",
+                snapshot_name, snapshot.snapshot_id[:12], new_snapshot.snapshot_id[:12],
+            )
+            return (
+                f"Snapshot '{snapshot_name}' was auto-refreshed from "
+                f"'{source_path.name}' (source was modified)."
+            )
+        else:
+            return None  # Source file changed but snapshot content is the same
+    except Exception as exc:
+        logger.warning("Auto re-ingest failed for '%s': %s", snapshot_name, exc)
+        return warning  # Return stale warning since we couldn't auto-refresh
+
+
+async def _check_db_drift(snapshot_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Compare snapshot entities/fields against live database information_schema.
+
+    Returns a drift report dict if discrepancies found, None otherwise.
+    Only runs once per snapshot per server session. Requires BOYCE_DB_URL.
+
+    Tier 3 of schema freshness: live DB drift detection.
+    """
+    if snapshot_name in _drift_checked:
+        return None
+    _drift_checked.add(snapshot_name)
+
+    try:
+        adapter = await _get_adapter()
+    except RuntimeError:
+        return None  # No DB configured
+
+    try:
+        snapshot = _store.load(snapshot_name)
+    except (FileNotFoundError, ValueError):
+        return None
+
+    # Query information_schema for all columns in public schema
+    try:
+        rows = await adapter.execute_query(
+            "SELECT table_name, column_name "
+            "FROM information_schema.columns "
+            "WHERE table_schema = 'public' "
+            "ORDER BY table_name, ordinal_position"
+        )
+    except Exception as exc:
+        logger.debug("Drift check query failed: %s", exc)
+        return None
+
+    # Build set of (table, column) from live DB
+    live_columns: set = set()
+    for row in rows:
+        live_columns.add((row["table_name"], row["column_name"]))
+
+    # Build set of (table, column) from snapshot
+    snapshot_columns: set = set()
+    for entity_id, entity in snapshot.entities.items():
+        for field_id in entity.fields:
+            field = snapshot.fields.get(field_id)
+            if field:
+                snapshot_columns.add((entity.name, field.name))
+
+    new_in_db = live_columns - snapshot_columns
+    missing_from_db = snapshot_columns - live_columns
+
+    if not new_in_db and not missing_from_db:
+        return None
+
+    new_by_table: Dict[str, List[str]] = {}
+    for table, column in sorted(new_in_db):
+        new_by_table.setdefault(table, []).append(column)
+
+    missing_by_table: Dict[str, List[str]] = {}
+    for table, column in sorted(missing_from_db):
+        missing_by_table.setdefault(table, []).append(column)
+
+    report: Dict[str, Any] = {
+        "new_in_db": new_by_table,
+        "missing_from_db": missing_by_table,
+        "message": (
+            f"Snapshot '{snapshot_name}' may be stale: "
+            f"{len(new_in_db)} column(s) in the live database are not in the snapshot"
+            + (f", {len(missing_from_db)} column(s) in the snapshot are not in the database"
+               if missing_from_db else "")
+            + ". Run ingest_source to refresh."
+        ),
+    }
+
+    logger.info("DB drift detected for '%s': %s", snapshot_name, report["message"])
+    return report
+
+
+# ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
 
@@ -659,14 +965,17 @@ def get_schema(
     snapshot_name: str = "default",
 ) -> str:
     """
-    Return the full schema context for a snapshot, including StructuredFilter documentation.
+    Return the full schema context for a snapshot — entities, fields, joins,
+    business definitions, and StructuredFilter documentation.
 
-    Use this tool to understand what entities, fields, joins, and business definitions
-    are available before constructing a StructuredFilter for `build_sql`.
+    **Call this first** when you need to understand a database before generating SQL.
+    Read the schema to learn what entities (tables), fields (columns), joins, and
+    business definitions are available. Use the StructuredFilter documentation to
+    construct a filter for `ask_boyce`.
 
-    This is designed for MCP hosts (Claude, Cursor, etc.) whose own LLM can read the
-    schema, reason about the user's question, and produce a StructuredFilter directly —
-    bypassing Boyce's internal LLM entirely.
+    If you are an MCP host with your own LLM: read this schema, reason about the
+    user's question, construct a StructuredFilter, and pass it to `ask_boyce`.
+    No additional credentials or API keys are needed.
 
     Args:
         snapshot_name: Name of a previously ingested snapshot. Defaults to "default".
@@ -674,13 +983,17 @@ def get_schema(
     Returns:
         JSON string with keys:
 
-            snapshot_id       — SHA-256 id of the snapshot
-            snapshot_name     — logical name
-            entities          — list of entity dicts with full field details
-            joins             — list of join dicts with weights
-            definitions       — list of business definition dicts (if any)
-            structured_filter_docs — complete documentation for the StructuredFilter format
+            snapshot_id            — SHA-256 id of the snapshot
+            snapshot_name          — logical name
+            entities               — list of entity dicts with full field details
+            joins                  — list of join dicts with weights
+            definitions            — list of business definition dicts (if any)
+            structured_filter_docs — complete StructuredFilter format documentation
+                                     with examples for constructing an `ask_boyce` call
     """
+    # Tier 2: session-start freshness check (sync — only runs once per snapshot per session)
+    freshness_warning = _check_snapshot_freshness(snapshot_name)
+
     try:
         snapshot = _store.load(snapshot_name)
     except FileNotFoundError as e:
@@ -740,17 +1053,19 @@ def get_schema(
     definitions_raw = _definitions.load_all(snapshot_name)
     definitions_out = list(definitions_raw.values()) if definitions_raw else []
 
-    return json.dumps({
+    result: Dict[str, Any] = {
         "snapshot_id": snapshot.snapshot_id,
         "snapshot_name": snapshot_name,
         "entities": entities_out,
         "joins": joins_out,
         "definitions": definitions_out,
         "structured_filter_docs": _STRUCTURED_FILTER_DOCS,
-    })
+    }
+    if freshness_warning:
+        result["freshness_warning"] = freshness_warning
+    return json.dumps(result)
 
 
-@mcp.tool()
 async def build_sql(
     structured_filter: dict,
     snapshot_name: str = "default",
@@ -833,7 +1148,6 @@ async def build_sql(
     return json.dumps(payload)
 
 
-@mcp.tool()
 def solve_path(
     source: str,
     target: str,
@@ -936,61 +1250,73 @@ def solve_path(
 
 @mcp.tool()
 async def ask_boyce(
-    natural_language_query: str,
+    natural_language_query: str = "",
+    structured_filter: Optional[dict] = None,
     snapshot_name: str = "default",
     dialect: str = "redshift",
 ) -> str:
     """
-    Generate SQL from a natural language query using a saved snapshot.
+    Generate safe, deterministic SQL from either a natural language question or a
+    StructuredFilter.
 
-    Runs a three-stage pipeline:
-      1. QueryPlanner (LiteLLM) — NL → StructuredFilter (grounded to graph).
-      2. kernel.process_request  — StructuredFilter → deterministic SQL (no LLM).
-      3. Pre-flight check        — EXPLAIN against live DB if BOYCE_DB_URL is set.
+    **For MCP hosts (Claude, Cursor, Copilot, etc.):** Call `get_schema` first to
+    understand the database. Construct a StructuredFilter from the schema and pass
+    it here via the `structured_filter` parameter. No additional credentials needed.
+    Boyce compiles deterministic SQL and runs safety checks (NULL trap detection,
+    EXPLAIN pre-flight, Redshift compatibility lint).
+
+    **For standalone use (CLI, HTTP API):** Pass a `natural_language_query` and
+    configure BOYCE_PROVIDER + BOYCE_MODEL environment variables.
+
+    If called with only a natural language query and no LLM credentials are configured,
+    returns relevant schema context so you can construct the filter and call back.
+
+    Operates in three modes:
+
+    **Mode A — StructuredFilter provided (zero credentials needed):**
+        ask_boyce(structured_filter={...}, snapshot_name="default")
+        Skips the planner entirely. Runs deterministic pipeline only.
+
+    **Mode B — NL query with credentials configured:**
+        ask_boyce(natural_language_query="revenue by product", snapshot_name="default")
+        Runs QueryPlanner (LiteLLM) then deterministic pipeline.
+
+    **Mode C — NL query with no credentials:**
+        ask_boyce(natural_language_query="revenue by product", snapshot_name="default")
+        Returns schema guidance so the host LLM can construct a StructuredFilter
+        and call back. Two round-trips, zero configuration.
 
     Args:
-        natural_language_query: Free-form question (e.g. "revenue by product last 12 months").
-        snapshot_name: Name of a previously ingested snapshot to query against.
+        natural_language_query: Free-form question. Optional when structured_filter
+            is provided. Required for Mode B and C.
+        structured_filter: A StructuredFilter dict. See `get_schema` for format
+            documentation. When provided, the planner is bypassed entirely.
+        snapshot_name: Name of a previously ingested snapshot. Defaults to "default".
         dialect: Target SQL dialect. Defaults to "redshift".
             Supported: "redshift", "postgres", "duckdb", "bigquery".
 
     Returns:
-        JSON string with keys:
+        Mode A/B — JSON string with keys:
+            sql, snapshot_id, snapshot_name, entities_resolved, validation,
+            [compat_risks], [warning], [null_trap_warnings]
 
-            sql               — generated SQL string
-            snapshot_id       — SHA-256 id of the snapshot used
-            snapshot_name     — logical name of the snapshot
-            entities_resolved — list of entity names the planner selected
-            validation        — pre-flight result object:
-                status        — "verified" | "invalid" | "unchecked"
-                error         — Postgres error message if invalid, else null
-                cost_estimate — planner cost from EXPLAIN if verified, else null
-            compat_risks      — list of Redshift compatibility warnings (if any)
+        Mode C — JSON string with keys:
+            mode="schema_guidance", message, query, snapshot_name,
+            relevant_entities, structured_filter_docs, [definitions_context]
 
-            warning           — present only when a NULL trap is detected:
-                code          — "NULL_TRAP"
-                severity      — "HIGH"
-                message       — summary of the hazard
-            null_trap_warnings — list of per-column trap dicts (see _null_trap_check);
-                                 present only when at least one column exceeds the
-                                 null_pct threshold.  Each item has:
-                                   table, column, null_pct, null_count, row_count,
-                                   filter_operator, filter_value, risk
-
-        On planning/config error: returns JSON with an "error" key.
-
-    Requires env vars for planning:
-        BOYCE_PROVIDER  (e.g. "openai")
-        BOYCE_MODEL     (e.g. "gpt-4o")
-        OPENAI_API_KEY / ANTHROPIC_API_KEY / LITELLM_API_KEY
-
-    Optional env var for pre-flight:
-        BOYCE_DB_URL    — asyncpg DSN; omit to skip validation (status: "unchecked")
+        On error: JSON with "error" key.
     """
-    if not natural_language_query:
+    # Must have at least one of the two inputs
+    if not structured_filter and not natural_language_query:
         return json.dumps({
-            "error": {"code": -32602, "message": "natural_language_query is required"}
+            "error": {
+                "code": -32602,
+                "message": "Provide natural_language_query or structured_filter",
+            }
         })
+
+    # Tier 2: session-start freshness check (sync — only runs once per snapshot per session)
+    freshness_warning = _check_snapshot_freshness(snapshot_name)
 
     # Load snapshot
     try:
@@ -1000,27 +1326,67 @@ async def ask_boyce(
     except ValueError as e:
         return json.dumps({"error": {"code": -32602, "message": str(e)}})
 
-    # Ensure snapshot is in the graph so the planner can traverse it
+    # Ensure snapshot is in the graph
     if snapshot.snapshot_id not in _graph.snapshots:
         _graph.add_snapshot(snapshot)
 
-    # Stage 1: NL → StructuredFilter via QueryPlanner (LiteLLM)
-    # Load certified business definitions and inject into planner context
-    definitions_context = _definitions.as_context_string(snapshot_name)
+    # Tier 3: live DB drift check (async — only runs once per snapshot per session)
+    drift_report = await _check_db_drift(snapshot_name)
 
+    # ------------------------------------------------------------------
+    # Mode A: StructuredFilter provided — deterministic, no LLM
+    # ------------------------------------------------------------------
+    if structured_filter is not None:
+        if not isinstance(structured_filter, dict):
+            return json.dumps({
+                "error": {"code": -32602, "message": "structured_filter must be a dict"}
+            })
+
+        validation_errors = _validate_structured_filter(structured_filter, snapshot)
+        if validation_errors:
+            return json.dumps({
+                "error": {
+                    "code": -32602,
+                    "message": "StructuredFilter validation failed",
+                    "data": validation_errors,
+                }
+            })
+
+        try:
+            payload = await _run_sql_pipeline(
+                snapshot, structured_filter, snapshot_name, dialect,
+                query_label=natural_language_query or "[structured_filter]",
+            )
+        except ValueError as e:
+            _audit.log_query(
+                query=natural_language_query or "[structured_filter]",
+                snapshot_name=snapshot_name,
+                snapshot_id=snapshot.snapshot_id, sql="", entities_resolved=[],
+                validation_status="unchecked", error=str(e),
+            )
+            return json.dumps({"error": {"code": -32603, "message": str(e)}})
+
+        if freshness_warning:
+            payload["freshness_warning"] = freshness_warning
+        if drift_report:
+            payload["drift_warning"] = drift_report
+        return json.dumps(payload)
+
+    # ------------------------------------------------------------------
+    # Modes B and C: NL query path
+    # ------------------------------------------------------------------
+    definitions_context = _definitions.as_context_string(snapshot_name)
     planner = _get_planner()
+
     try:
-        structured_filter = planner.plan_query(
+        planned_filter = planner.plan_query(
             natural_language_query, _graph, definitions_context=definitions_context
         )
-    except ValueError as e:
-        _audit.log_query(
-            query=natural_language_query, snapshot_name=snapshot_name,
-            snapshot_id=snapshot.snapshot_id, sql="", entities_resolved=[],
-            validation_status="unchecked", error=f"Planner error: {e}",
-        )
-        return json.dumps({"error": {"code": -32603, "message": f"Planner error: {e}"}})
+    except ValueError:
+        # Mode C: credentials not configured — return schema guidance for host LLM
+        return _build_schema_guidance(natural_language_query, snapshot, snapshot_name)
     except Exception as e:
+        # Actual LLM error (bad key, network failure, parse error)
         logger.exception("Unexpected error in plan_query")
         _audit.log_query(
             query=natural_language_query, snapshot_name=snapshot_name,
@@ -1029,10 +1395,10 @@ async def ask_boyce(
         )
         return json.dumps({"error": {"code": -32603, "message": f"Planner error: {e}"}})
 
-    # Stages 2-4: deterministic SQL pipeline (shared with build_sql)
+    # Mode B: run deterministic pipeline with planner output
     try:
         payload = await _run_sql_pipeline(
-            snapshot, structured_filter, snapshot_name, dialect,
+            snapshot, planned_filter, snapshot_name, dialect,
             query_label=natural_language_query,
         )
     except ValueError as e:
@@ -1042,6 +1408,153 @@ async def ask_boyce(
             validation_status="unchecked", error=str(e),
         )
         return json.dumps({"error": {"code": -32603, "message": str(e)}})
+
+    if freshness_warning:
+        payload["freshness_warning"] = freshness_warning
+    if drift_report:
+        payload["drift_warning"] = drift_report
+    return json.dumps(payload)
+
+
+# ---------------------------------------------------------------------------
+# validate_sql helpers
+# ---------------------------------------------------------------------------
+
+_EQUALITY_FILTER_RE = re.compile(
+    r"(\w+)\.(\w+)\s*=\s*'[^']*'"   # table.column = 'value'
+    r"|(\w+)\s*=\s*'[^']*'",         # column = 'value'
+    re.IGNORECASE,
+)
+
+
+def _scan_null_risk(sql: str, snapshot_name: str) -> List[Dict[str, Any]]:
+    """
+    Parse WHERE clause for equality filters and check if those columns
+    are nullable in the snapshot.
+
+    This is a lightweight heuristic — not a full SQL parser. It catches
+    common patterns like `status = 'active'` and `orders.status = 'active'`.
+
+    Returns list of dicts with keys: table, column, nullable, risk.
+    """
+    try:
+        snapshot = _store.load(snapshot_name)
+    except (FileNotFoundError, ValueError):
+        return []
+
+    risks = []
+    for match in _EQUALITY_FILTER_RE.finditer(sql):
+        if match.group(1) and match.group(2):
+            table_name: Optional[str] = match.group(1)
+            column_name: str = match.group(2)
+        elif match.group(3):
+            table_name = None
+            column_name = match.group(3)
+        else:
+            continue
+
+        for field in snapshot.fields.values():
+            if field.name != column_name:
+                continue
+            if table_name:
+                entity = snapshot.entities.get(field.entity_id)
+                if entity and entity.name != table_name:
+                    continue
+            if field.nullable:
+                entity = snapshot.entities.get(field.entity_id)
+                entity_name = entity.name if entity else "unknown"
+                risks.append({
+                    "table": entity_name,
+                    "column": column_name,
+                    "nullable": True,
+                    "risk": (
+                        f"Column '{column_name}' is nullable. "
+                        f"Equality filter (= 'value') silently excludes NULL rows."
+                    ),
+                })
+            break  # found the column, move on
+
+    return risks
+
+
+# ---------------------------------------------------------------------------
+# validate_sql tool
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def validate_sql(
+    sql: str,
+    snapshot_name: str = "default",
+    dialect: str = "redshift",
+) -> str:
+    """
+    Validate a SQL query through Boyce's safety layer without executing it.
+
+    Use this when you've written SQL directly (without using a StructuredFilter) and
+    want to check it before running. Returns:
+    - EXPLAIN pre-flight result (verified/invalid/unchecked)
+    - Redshift compatibility warnings
+    - NULL risk analysis for equality-filtered columns (when parseable from WHERE clause)
+
+    Does NOT execute the query. Use `query_database` to run it after validation.
+
+    Args:
+        sql: A SELECT statement to validate.
+        snapshot_name: Name of a previously ingested snapshot (used for NULL risk
+            analysis — matching WHERE clause columns against snapshot field metadata).
+            Defaults to "default".
+        dialect: Target SQL dialect for compatibility linting. Defaults to "redshift".
+            Supported: "redshift", "postgres", "duckdb", "bigquery".
+
+    Returns:
+        JSON string with keys:
+
+            sql               — the SQL as provided (echoed back)
+            validation        — pre-flight EXPLAIN result:
+                status        — "verified" | "invalid" | "unchecked"
+                error         — Postgres error message if invalid, else null
+                cost_estimate — planner cost if verified, else null
+            compat_risks      — list of Redshift compatibility warnings (if any)
+            null_risk_columns — list of columns in WHERE equality filters that are
+                                nullable in the snapshot (potential NULL trap risk)
+            snapshot_name     — snapshot used for NULL risk analysis
+    """
+    if not sql or not sql.strip():
+        return json.dumps({
+            "error": {"code": -32602, "message": "sql is required"}
+        })
+
+    logger.info("validate_sql called | sql=%r", sql[:200])
+
+    # Stage 1: Redshift compat lint
+    compat_risks = lint_redshift_compat(sql) if dialect == "redshift" else []
+
+    # Stage 2: EXPLAIN pre-flight
+    validation = await _preflight_check(sql)
+
+    # Stage 3: Lightweight NULL risk scan
+    null_risk_columns = _scan_null_risk(sql, snapshot_name)
+
+    payload: Dict[str, Any] = {
+        "sql": sql,
+        "validation": validation,
+        "snapshot_name": snapshot_name,
+    }
+    if compat_risks:
+        payload["compat_risks"] = compat_risks
+    if null_risk_columns:
+        payload["null_risk_columns"] = null_risk_columns
+
+    # Audit
+    _audit.log_query(
+        query="[validate_sql]",
+        snapshot_name=snapshot_name,
+        snapshot_id="",
+        sql=sql,
+        entities_resolved=[],
+        validation_status=validation["status"],
+    )
 
     return json.dumps(payload)
 

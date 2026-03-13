@@ -176,7 +176,7 @@ async def route_ask(request: Request) -> JSONResponse:
 
 async def route_chat(request: Request) -> JSONResponse:
     """
-    Conversational endpoint — classifies intent and routes to the right tool.
+    Conversational endpoint — routes all messages through ask_boyce.
 
     Returns a text response shaped for display, not just raw SQL.
 
@@ -184,10 +184,9 @@ async def route_chat(request: Request) -> JSONResponse:
         {"message": "...", "snapshot_name": "default", "dialect": "redshift"}
 
     Response:
-        {"reply": "...", "tool_used": "...", "data": {...}}
+        {"reply": "...", "tool_used": "ask_boyce", "data": {...}}
     """
-    from .server import ask_boyce, get_schema, solve_path  # noqa: PLC0415
-    from .cli import _classify_intent  # noqa: PLC0415
+    from .server import ask_boyce  # noqa: PLC0415
 
     body = await _json_body(request)
     message = body.get("message", "")
@@ -200,65 +199,45 @@ async def route_chat(request: Request) -> JSONResponse:
             status_code=400,
         )
 
-    intent = _classify_intent(message)
+    raw = await ask_boyce(
+        natural_language_query=message,
+        snapshot_name=snapshot_name,
+        dialect=dialect,
+    )
+    data = json.loads(raw)
 
-    if intent == "schema":
-        raw = get_schema(snapshot_name)
-        data = json.loads(raw)
-        if "error" in data:
-            return JSONResponse(data, status_code=400)
+    if "error" in data:
+        return JSONResponse(data, status_code=400)
+
+    # Mode C: schema guidance — no LLM credentials configured
+    if data.get("mode") == "schema_guidance":
+        entities = data.get("relevant_entities", [])
         entity_lines = []
-        for ent in data["entities"]:
-            field_names = [f["name"] for f in ent["fields"]]
+        for ent in entities:
+            field_names = [f["name"] for f in ent.get("fields", [])]
             preview = ", ".join(field_names[:5])
             if len(field_names) > 5:
                 preview += f" (+{len(field_names) - 5} more)"
             entity_lines.append(f"{ent['name']}: {preview}")
-        reply = f"Available entities in '{snapshot_name}':\n" + "\n".join(
-            f"  • {line}" for line in entity_lines
-        )
-        return JSONResponse({"reply": reply, "tool_used": "get_schema", "data": data})
-
-    if intent == "path":
-        raw_schema = get_schema(snapshot_name)
-        schema = json.loads(raw_schema)
-        if "error" in schema:
-            return JSONResponse(schema, status_code=400)
-        entity_names = [e["name"] for e in schema["entities"]]
-        mentioned = [n for n in entity_names if n.lower() in message.lower()]
-        if len(mentioned) >= 2:
-            raw = solve_path(mentioned[0], mentioned[1], snapshot_name)
-            data = json.loads(raw)
-            if "error" in data:
-                reply = f"No join path found between '{mentioned[0]}' and '{mentioned[1]}'."
-                return JSONResponse({"reply": reply, "tool_used": "solve_path", "data": data})
-            reply = (
-                f"{mentioned[0]} → {mentioned[1]}: "
-                f"{data['path_length']} hop(s), cost {data['semantic_cost']:.2f}\n\n"
-                f"{data['sql']}"
-            )
-            return JSONResponse({"reply": reply, "tool_used": "solve_path", "data": data})
-
-    if intent == "profile":
+        schema_summary = "\n".join(f"  • {line}" for line in entity_lines)
         reply = (
-            "Profile queries require a live database connection (BOYCE_DB_URL) "
-            "and a specific table and column. Use the /profile endpoint directly, "
-            "or ask 'how many nulls in orders.status'."
+            f"Here's what I found in the database for your question:\n{schema_summary}\n\n"
+            "To generate SQL, configure Boyce's LLM credentials: "
+            "set BOYCE_PROVIDER and BOYCE_MODEL, or run `boyce-init`."
         )
-        return JSONResponse({"reply": reply, "tool_used": "none", "data": {}})
+        return JSONResponse({"reply": reply, "tool_used": "ask_boyce", "data": data})
 
-    # Default: NL → SQL via ask_boyce
-    raw = await ask_boyce(message, snapshot_name, dialect)
-    data = json.loads(raw)
-    if "error" in data:
-        return JSONResponse(data, status_code=400)
-
+    # Mode A/B: SQL result
     entities = ", ".join(data.get("entities_resolved", []))
     reply = f"Here's the SQL:\n\n{data['sql']}\n\n-- Entities: {entities}"
 
     if "warning" in data:
         w = data["warning"]
         reply += f"\n\n⚠ {w['code']}: {w['message']}"
+
+    if "compat_risks" in data:
+        for risk in data["compat_risks"]:
+            reply += f"\n[COMPAT] {risk}"
 
     return JSONResponse({"reply": reply, "tool_used": "ask_boyce", "data": data})
 

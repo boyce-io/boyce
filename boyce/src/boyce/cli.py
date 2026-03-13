@@ -4,7 +4,7 @@ boyce CLI — unified command dispatcher.
 Usage:
     boyce                                  Start MCP server on stdio
     boyce ask "query" [OPTIONS]            Direct NL → SQL (uses ask_boyce pipeline)
-    boyce chat "message" [OPTIONS]         Conversational mode (intent routing)
+    boyce chat "message" [OPTIONS]         Conversational mode
     boyce serve --http [--port N]          Start HTTP API server
 
 Options for ask / chat:
@@ -29,46 +29,6 @@ import json
 import sys
 from pathlib import Path
 from typing import Optional
-
-
-# ---------------------------------------------------------------------------
-# Intent routing for `boyce chat`
-# ---------------------------------------------------------------------------
-
-_SCHEMA_KEYWORDS = frozenset({
-    "table", "tables", "schema", "field", "fields", "column", "columns",
-    "entity", "entities", "available", "what data", "what tables",
-})
-_PATH_KEYWORDS = frozenset({
-    "connect", "connection", "join", "joins", "relate", "related",
-    "path", "link", "relationship", "between",
-})
-_PROFILE_KEYWORDS = frozenset({
-    "null", "nulls", "profile", "distribution", "how many", "count",
-    "distinct", "min", "max", "stats", "statistics",
-})
-
-
-def _classify_intent(message: str) -> str:
-    """
-    Classify a chat message into one of: schema | path | profile | sql.
-
-    Uses keyword heuristics — no LLM call needed for routing.
-    """
-    lower = message.lower()
-    words = set(lower.split())
-
-    schema_hits = len(words & _SCHEMA_KEYWORDS) + (1 if any(kw in lower for kw in _SCHEMA_KEYWORDS) else 0)
-    path_hits = len(words & _PATH_KEYWORDS) + (1 if any(kw in lower for kw in _PATH_KEYWORDS) else 0)
-    profile_hits = len(words & _PROFILE_KEYWORDS) + (1 if any(kw in lower for kw in _PROFILE_KEYWORDS) else 0)
-
-    if schema_hits >= 1 and schema_hits >= path_hits and schema_hits >= profile_hits:
-        return "schema"
-    if path_hits >= 1 and path_hits >= schema_hits:
-        return "path"
-    if profile_hits >= 1:
-        return "profile"
-    return "sql"
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +77,7 @@ async def _cmd_ask(
 
 
 # ---------------------------------------------------------------------------
-# `boyce chat` — conversational with intent routing
+# `boyce chat` — conversational via ask_boyce
 # ---------------------------------------------------------------------------
 
 
@@ -127,71 +87,42 @@ async def _cmd_chat(
     dialect: str,
 ) -> int:
     """
-    Route a natural language message to the appropriate tool and print
+    Route a natural language message through ask_boyce and print
     a conversational text response.
     """
-    from .server import ask_boyce, get_schema, solve_path  # noqa: PLC0415
+    from .server import ask_boyce  # noqa: PLC0415
 
-    intent = _classify_intent(message)
-
-    if intent == "schema":
-        raw = get_schema(snapshot_name)
-        result = json.loads(raw)
-        if "error" in result:
-            print(f"Error: {result['error']['message']}", file=sys.stderr)
-            return 1
-        entities = result["entities"]
-        lines = [f"Available entities in snapshot '{snapshot_name}':\n"]
-        for ent in entities:
-            field_names = [f["name"] for f in ent["fields"]]
-            lines.append(f"  {ent['name']}  ({len(ent['fields'])} fields)")
-            if field_names:
-                preview = ", ".join(field_names[:6])
-                if len(field_names) > 6:
-                    preview += f", … +{len(field_names) - 6} more"
-                lines.append(f"    Fields: {preview}")
-        print("\n".join(lines))
-        return 0
-
-    if intent == "path":
-        # Try to extract two entity names from the message
-        raw_schema = get_schema(snapshot_name)
-        schema = json.loads(raw_schema)
-        if "error" in schema:
-            print(f"Error: {schema['error']['message']}", file=sys.stderr)
-            return 1
-        entity_names = [e["name"] for e in schema["entities"]]
-        mentioned = [n for n in entity_names if n.lower() in message.lower()]
-        if len(mentioned) >= 2:
-            raw = solve_path(mentioned[0], mentioned[1], snapshot_name)
-            result = json.loads(raw)
-            if "error" in result:
-                print(f"No join path found between '{mentioned[0]}' and '{mentioned[1]}'.", file=sys.stderr)
-                return 1
-            print(f"Join path from {mentioned[0]} to {mentioned[1]}:")
-            print(f"  {result['path_length']} hop(s), semantic cost {result['semantic_cost']:.2f}")
-            print(f"\n{result['sql']}")
-            return 0
-        # Fall through to SQL if we can't identify entities
-        print("Tip: name two entities to explore their join path (e.g. 'how do orders connect to customers?')")
-
-    if intent == "profile":
-        print("Profile queries require a live database (BOYCE_DB_URL) and a specific table/column.")
-        print("Try: boyce ask 'how many nulls in orders.status'")
-        print("Or use the profile_data MCP tool from your host.")
-        return 0
-
-    # Default: SQL generation via ask_boyce
     raw = await ask_boyce(
         natural_language_query=message,
         snapshot_name=snapshot_name,
         dialect=dialect,
     )
     result = json.loads(raw)
+
     if "error" in result:
         print(f"Error: {result['error']['message']}", file=sys.stderr)
         return 1
 
+    # Mode C: schema guidance — no credentials configured
+    if result.get("mode") == "schema_guidance":
+        print(f"Here's what I found in the database for '{message}':\n")
+        entities = result.get("relevant_entities", [])
+        for ent in entities:
+            field_names = [f["name"] for f in ent.get("fields", [])]
+            print(f"  {ent['name']}  ({len(field_names)} fields)")
+            if field_names:
+                preview = ", ".join(field_names[:6])
+                if len(field_names) > 6:
+                    preview += f", … +{len(field_names) - 6} more"
+                print(f"    Fields: {preview}")
+        print(
+            "\nTo generate SQL, configure Boyce's LLM credentials:\n"
+            "  Run `boyce-init` to configure your MCP host, or set:\n"
+            "  BOYCE_PROVIDER=anthropic BOYCE_MODEL=claude-haiku-4-5-20251001"
+        )
+        return 0
+
+    # Mode A/B: SQL result
     entities = ", ".join(result.get("entities_resolved", []))
     validation = result["validation"]["status"]
 
@@ -202,6 +133,10 @@ async def _cmd_chat(
     if "warning" in result:
         w = result["warning"]
         print(f"\n⚠  {w['code']}: {w['message']}", file=sys.stderr)
+
+    if "compat_risks" in result:
+        for risk in result["compat_risks"]:
+            print(f"[COMPAT] {risk}", file=sys.stderr)
 
     return 0
 

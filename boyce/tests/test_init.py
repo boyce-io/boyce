@@ -231,6 +231,146 @@ def test_merge_config_output_is_valid_json(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# merge_config — servers_key parameter (VS Code uses "servers" not "mcpServers")
+# ---------------------------------------------------------------------------
+
+
+def test_merge_config_vscode_uses_servers_key(tmp_path):
+    """VS Code config uses 'servers' as the top-level key, not 'mcpServers'."""
+    config_path = tmp_path / "mcp.json"
+    entry = {"command": "boyce", "args": []}
+    merge_config(config_path, entry, servers_key="servers")
+
+    data = json.loads(config_path.read_text())
+    assert "servers" in data
+    assert data["servers"]["boyce"] == entry
+    assert "mcpServers" not in data
+
+
+def test_merge_config_servers_key_preserves_other_entries(tmp_path):
+    """merge_config with custom servers_key preserves other entries."""
+    config_path = tmp_path / "mcp.json"
+    config_path.write_text(json.dumps({
+        "servers": {
+            "other-tool": {"command": "other"}
+        }
+    }))
+    merge_config(config_path, {"command": "boyce", "args": []}, servers_key="servers")
+    data = json.loads(config_path.read_text())
+    assert "other-tool" in data["servers"]
+    assert "boyce" in data["servers"]
+
+
+# ---------------------------------------------------------------------------
+# detect_hosts — VS Code, JetBrains, Windsurf
+# ---------------------------------------------------------------------------
+
+
+def _make_specs_with_new_platforms(tmp_path: Path) -> list:
+    """Host spec list including VS Code, JetBrains, Windsurf."""
+    return [
+        {
+            "name": "VS Code",
+            "path": tmp_path / ".vscode" / "mcp.json",
+            "project_level": True,
+            "servers_key": "servers",
+        },
+        {
+            "name": "JetBrains",
+            "path": tmp_path / ".jb-mcp.json",
+            "project_level": True,
+            "servers_key": "mcpServers",
+            "detection_hint": tmp_path / ".idea",
+            "post_config_note": (
+                "  Tip: You can also configure in your JetBrains IDE:\n"
+                "       Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add"
+            ),
+        },
+        {
+            "name": "Windsurf",
+            "path": tmp_path / "windsurf_mcp_config.json",
+            "project_level": False,
+            "servers_key": "mcpServers",
+        },
+    ]
+
+
+def test_detect_hosts_vscode_not_detected_without_vscode_dir(tmp_path):
+    """VS Code host is not detected when .vscode/ dir doesn't exist."""
+    specs = _make_specs_with_new_platforms(tmp_path)
+    hosts = detect_hosts(specs)
+    vscode = next(h for h in hosts if h.name == "VS Code")
+    assert vscode.exists is False
+
+
+def test_detect_hosts_vscode_detected_with_config_file(tmp_path):
+    """VS Code host detected when .vscode/mcp.json exists."""
+    specs = _make_specs_with_new_platforms(tmp_path)
+    vscode_path = tmp_path / ".vscode" / "mcp.json"
+    vscode_path.parent.mkdir()
+    vscode_path.write_text(json.dumps({"servers": {}}))
+
+    hosts = detect_hosts(specs)
+    vscode = next(h for h in hosts if h.name == "VS Code")
+    assert vscode.exists is True
+    assert vscode.has_boyce is False
+
+
+def test_detect_hosts_vscode_reads_servers_key(tmp_path):
+    """VS Code host checks 'servers' key (not 'mcpServers') for boyce entry."""
+    specs = _make_specs_with_new_platforms(tmp_path)
+    vscode_path = tmp_path / ".vscode" / "mcp.json"
+    vscode_path.parent.mkdir()
+    vscode_path.write_text(json.dumps({"servers": {"boyce": {"command": "boyce"}}}))
+
+    hosts = detect_hosts(specs)
+    vscode = next(h for h in hosts if h.name == "VS Code")
+    assert vscode.has_boyce is True
+
+
+def test_detect_hosts_jetbrains_detected_via_idea_dir(tmp_path):
+    """JetBrains detected via .idea/ directory even without .jb-mcp.json."""
+    specs = _make_specs_with_new_platforms(tmp_path)
+    (tmp_path / ".idea").mkdir()
+
+    hosts = detect_hosts(specs)
+    jb = next(h for h in hosts if h.name == "JetBrains")
+    assert jb.exists is True
+    assert jb.has_boyce is False
+
+
+def test_detect_hosts_jetbrains_has_post_config_note(tmp_path):
+    """JetBrains MCPHost carries a non-empty post_config_note."""
+    specs = _make_specs_with_new_platforms(tmp_path)
+    hosts = detect_hosts(specs)
+    jb = next(h for h in hosts if h.name == "JetBrains")
+    assert jb.post_config_note is not None
+    assert "Settings" in jb.post_config_note
+
+
+def test_detect_hosts_windsurf_detected_with_config(tmp_path):
+    """Windsurf detected when mcp_config.json exists."""
+    specs = _make_specs_with_new_platforms(tmp_path)
+    windsurf_path = tmp_path / "windsurf_mcp_config.json"
+    windsurf_path.write_text(json.dumps({"mcpServers": {}}))
+
+    hosts = detect_hosts(specs)
+    windsurf = next(h for h in hosts if h.name == "Windsurf")
+    assert windsurf.exists is True
+    assert windsurf.has_boyce is False
+
+
+def test_merge_config_jetbrains_uses_mcpservers(tmp_path):
+    """JetBrains config uses mcpServers (same as Claude/Cursor)."""
+    config_path = tmp_path / ".jb-mcp.json"
+    entry = {"command": "boyce", "args": []}
+    merge_config(config_path, entry, servers_key="mcpServers")
+
+    data = json.loads(config_path.read_text())
+    assert data["mcpServers"]["boyce"] == entry
+
+
+# ---------------------------------------------------------------------------
 # _resolve_boyce_command
 # ---------------------------------------------------------------------------
 

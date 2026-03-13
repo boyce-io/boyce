@@ -194,7 +194,7 @@ def test_get_schema_returns_filter_docs(wired_server):
     assert "structured_filter_docs" in result
     docs = result["structured_filter_docs"]
     assert "StructuredFilter" in docs
-    assert "build_sql" in docs
+    assert "ask_boyce" in docs
     assert "trailing_interval" in docs
 
 
@@ -439,3 +439,124 @@ def test_validate_bad_temporal_operator(wired_server):
     ]
     errors = srv._validate_structured_filter(sf, snap)
     assert any("last_n_days" in e for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# ask_boyce Mode A tests (StructuredFilter provided — no LLM needed)
+# ---------------------------------------------------------------------------
+
+
+def test_ask_boyce_mode_a_basic(wired_server):
+    """Valid structured_filter, no NL query → SQL returned without error."""
+    sf = _minimal_filter(wired_server)
+    result = json.loads(_run(srv.ask_boyce(structured_filter=sf, snapshot_name="default")))
+    assert "error" not in result
+    assert "sql" in result
+    assert "SELECT" in result["sql"].upper()
+
+
+def test_ask_boyce_mode_a_invalid_filter(wired_server):
+    """Invalid entity ID in structured_filter → validation error, no SQL."""
+    sf = _minimal_filter(wired_server)
+    sf["concept_map"]["entities"] = [{"entity_id": "entity:ghost", "entity_name": "ghost"}]
+    result = json.loads(_run(srv.ask_boyce(structured_filter=sf, snapshot_name="default")))
+    assert "error" in result
+    assert result["error"]["code"] == -32602
+    assert "sql" not in result
+
+
+def test_ask_boyce_mode_a_ignores_credentials(wired_server):
+    """Mode A succeeds even when BOYCE_PROVIDER/BOYCE_MODEL/api keys are absent."""
+    import os
+    sf = _minimal_filter(wired_server)
+    env_backup = {
+        k: os.environ.pop(k)
+        for k in ("BOYCE_PROVIDER", "BOYCE_MODEL", "OPENAI_API_KEY",
+                  "ANTHROPIC_API_KEY", "LITELLM_API_KEY")
+        if k in os.environ
+    }
+    try:
+        result = json.loads(_run(srv.ask_boyce(structured_filter=sf, snapshot_name="default")))
+    finally:
+        os.environ.update(env_backup)
+    assert "error" not in result
+    assert "sql" in result
+
+
+def test_ask_boyce_mode_a_filter_takes_priority(wired_server):
+    """When both structured_filter and NL are provided, filter is used (Mode A, not Mode C)."""
+    sf = _minimal_filter(wired_server)
+    import os
+    env_backup = {
+        k: os.environ.pop(k)
+        for k in ("BOYCE_PROVIDER", "BOYCE_MODEL", "OPENAI_API_KEY",
+                  "ANTHROPIC_API_KEY", "LITELLM_API_KEY")
+        if k in os.environ
+    }
+    try:
+        result = json.loads(_run(srv.ask_boyce(
+            natural_language_query="total revenue",
+            structured_filter=sf,
+            snapshot_name="default",
+        )))
+    finally:
+        os.environ.update(env_backup)
+    # Mode A was used — result has sql, not schema_guidance
+    assert result.get("mode") != "schema_guidance"
+    assert "sql" in result
+
+
+# ---------------------------------------------------------------------------
+# ask_boyce Mode C tests (NL provided, no credentials → schema guidance)
+# ---------------------------------------------------------------------------
+
+
+def _strip_llm_env() -> dict:
+    """Remove all LLM credential env vars; return backup dict for restore."""
+    import os
+    return {
+        k: os.environ.pop(k)
+        for k in ("BOYCE_PROVIDER", "BOYCE_MODEL", "OPENAI_API_KEY",
+                  "ANTHROPIC_API_KEY", "LITELLM_API_KEY")
+        if k in os.environ
+    }
+
+
+def test_ask_boyce_mode_c_returns_schema_guidance(wired_server):
+    """NL query with no credentials → Mode C response with mode=schema_guidance."""
+    import os
+    backup = _strip_llm_env()
+    try:
+        result = json.loads(_run(srv.ask_boyce(
+            natural_language_query="total revenue by status",
+            snapshot_name="default",
+        )))
+    finally:
+        os.environ.update(backup)
+    assert result.get("mode") == "schema_guidance"
+    assert "relevant_entities" in result
+    assert "structured_filter_docs" in result
+    assert "error" not in result
+
+
+def test_ask_boyce_mode_c_includes_filter_docs(wired_server):
+    """Mode C schema_guidance response includes StructuredFilter documentation."""
+    import os
+    backup = _strip_llm_env()
+    try:
+        result = json.loads(_run(srv.ask_boyce(
+            natural_language_query="count orders",
+            snapshot_name="default",
+        )))
+    finally:
+        os.environ.update(backup)
+    docs = result.get("structured_filter_docs", "")
+    assert "StructuredFilter" in docs
+    assert "concept_map" in docs
+
+
+def test_ask_boyce_mode_c_no_query_no_filter_returns_error(wired_server):
+    """Neither NL query nor structured_filter → error, not schema_guidance."""
+    result = json.loads(_run(srv.ask_boyce(snapshot_name="default")))
+    assert "error" in result
+    assert result["error"]["code"] == -32602
