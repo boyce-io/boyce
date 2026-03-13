@@ -8,6 +8,17 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 CTO / Architect. Follows the four-phase protocol defined in `~/.claude/CLAUDE.md`: Assess & Plan → Build → Verify → Ship.
 
+## Organizational Context
+
+This workstream is part of Convergent Methods. Organizational state lives at `dev/drucker/`.
+
+- Before starting work: check `dev/drucker/instance/status/` for anything affecting this workstream.
+- After completing work: update your workstream status file in `dev/drucker/instance/status/`.
+- Cross-workstream observations go to `dev/drucker/feedback/`.
+- The organizational manifest is at `dev/drucker/instance/manifest/cm_manifest.yaml`.
+
+If something you did or discovered affects another workstream, don't assume the human will relay it. Write it down.
+
 ### Session Protocol
 1. Read `_strategy/MASTER.md` for current priorities
 2. Check for active plans in `_strategy/plans/`
@@ -250,6 +261,7 @@ See `_strategy/plans/block-1b-vscode-extension.md` for full plan.
 
 ## Workflow Rules
 - Always verify `python boyce/tests/verify_eyes.py` passes before and after changes
+- **CLI change rule:** Any change to `cli.py`, `scan.py`, or `init_wizard.py` that adds, removes, or renames a subcommand/flag/exit-code contract MUST include a corresponding update to `boyce/tests/test_cli_smoke.py`. The smoke test is the contract registry for CLI behavior. No CLI PR merges without updating it.
 - Commit granularly with descriptive messages
 - When writing SQL migrations, include both UP and DOWN
 - Use `git diff` to verify changes before committing
