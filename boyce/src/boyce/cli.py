@@ -248,6 +248,12 @@ def _parse_args(argv: list) -> tuple:
 
     subcmd = argv[0]
 
+    if subcmd in ("-h", "--help"):
+        return ("help", {})
+
+    if subcmd in ("-V", "--version"):
+        return ("version", {})
+
     if subcmd in ("ask", "chat"):
         if len(argv) < 2:
             return ("error", {"msg": f"Usage: boyce {subcmd} \"<query>\" [--snapshot NAME] [--dialect DIALECT]"})
@@ -280,8 +286,8 @@ def _parse_args(argv: list) -> tuple:
             return ("error", {"msg": "Usage: boyce serve --http [--port N]"})
         return ("serve", {"port": port})
 
-    # Unknown subcommand — treat the whole argv as MCP (backward compat)
-    return ("mcp", {})
+    # Unknown subcommand — print error rather than silently starting MCP server
+    return ("error", {"msg": f"Unknown command: '{subcmd}'\nUsage: boyce [ask|chat|serve] ...\nRun 'boyce --help' for full usage."})
 
 
 # ---------------------------------------------------------------------------
@@ -296,6 +302,18 @@ def main() -> None:
     if subcmd == "error":
         print(kwargs["msg"], file=sys.stderr)
         sys.exit(1)
+
+    if subcmd == "help":
+        print(__doc__)
+        return
+
+    if subcmd == "version":
+        from importlib.metadata import version as _version, PackageNotFoundError
+        try:
+            print(_version("boyce"))
+        except PackageNotFoundError:
+            print("boyce (development install)")
+        return
 
     if subcmd == "mcp":
         # Default: run MCP server on stdio
