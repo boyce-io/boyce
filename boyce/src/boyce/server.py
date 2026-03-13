@@ -801,14 +801,19 @@ def ingest_source(
     snapshot_name: str = "default",
 ) -> str:
     """
-    Ingest a SemanticSnapshot from a file path or a pre-built JSON dict.
+    Ingest a database schema from a file. Call this FIRST when the user has a schema
+    file — Boyce auto-detects the format and parses it. Do not read or parse the
+    file yourself; just pass the path.
 
     Provide exactly one of source_path or snapshot_json.
 
     Args:
-        source_path: Path to a dbt manifest.json, dbt project directory
-            (containing dbt_project.yml), or a LookML .lkml file.
-            Boyce auto-detects the source type and parses it.
+        source_path: Path to any supported schema source. Boyce auto-detects the
+            format. Supported: .sql DDL files, dbt manifest.json, dbt project
+            directories (containing dbt_project.yml), LookML .lkml files,
+            SQLite .db/.sqlite files, Django models.py, SQLAlchemy models,
+            Prisma .prisma files, CSV/Parquet data files, or a pre-built
+            SemanticSnapshot .json file.
         snapshot_json: A dict conforming to the SemanticSnapshot schema.
             Must include a valid snapshot_id (SHA-256 of canonical content).
             Use this to ingest a pre-built snapshot directly.
