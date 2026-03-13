@@ -69,14 +69,16 @@ def parse_from_path(source_path: str | Path) -> SemanticSnapshot:
 
     resolved_path_str = str(path.resolve())
 
+    from boyce.validation import _compute_snapshot_hash
+
     # Pre-check: if it's a JSON file with all SemanticSnapshot keys, load it directly
     # rather than running it through the source-parser pipeline.
+    snapshot: Optional[SemanticSnapshot] = None
     if path.suffix.lower() == ".json" and path.is_file():
         try:
             with open(path, encoding="utf-8") as fh:
                 raw = json.load(fh)
             if isinstance(raw, dict) and _SNAPSHOT_REQUIRED_KEYS.issubset(raw.keys()):
-                from boyce.validation import _compute_snapshot_hash
                 snapshot = SemanticSnapshot(**raw)
                 real_hash = _compute_snapshot_hash(snapshot)
                 if snapshot.snapshot_id == "COMPUTED":
@@ -88,21 +90,19 @@ def parse_from_path(source_path: str | Path) -> SemanticSnapshot:
                         f"stored '{snapshot.snapshot_id}' does not match "
                         f"computed '{real_hash}'."
                     )
-                # Track source path for freshness checks
-                if "source_path" not in snapshot.metadata:
-                    updated_meta = dict(snapshot.metadata)
-                    updated_meta["source_path"] = resolved_path_str
-                    snapshot = snapshot.model_copy(update={"metadata": updated_meta})
-                return snapshot
         except (json.JSONDecodeError, KeyError):
             pass  # Not a valid snapshot JSON — fall through to registry
 
-    snapshot = get_default_registry().parse(path)
+    if snapshot is None:
+        snapshot = get_default_registry().parse(path)
 
-    # Track source path for freshness checks (Tier 2)
+    # Track source path for freshness checks (Tier 2).
+    # Done after both paths so the hash recomputation happens exactly once.
     if "source_path" not in snapshot.metadata:
         updated_meta = dict(snapshot.metadata)
         updated_meta["source_path"] = resolved_path_str
         snapshot = snapshot.model_copy(update={"metadata": updated_meta})
+        new_hash = _compute_snapshot_hash(snapshot)
+        snapshot = snapshot.model_copy(update={"snapshot_id": new_hash})
 
     return snapshot
