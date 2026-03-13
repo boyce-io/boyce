@@ -41,8 +41,9 @@ def _make_specs(tmp_path: Path) -> list:
         },
         {
             "name": "Claude Code",
-            "path": tmp_path / ".claude" / "settings.json",
+            "path": tmp_path / ".mcp.json",
             "project_level": True,
+            "detection_hint": tmp_path / ".claude",
         },
     ]
 

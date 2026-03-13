@@ -82,9 +82,10 @@ def _host_specs() -> List[Dict]:
         },
         {
             "name": "Claude Code",
-            "path": Path.cwd() / ".claude" / "settings.json",
+            "path": Path.cwd() / ".mcp.json",
             "project_level": True,
             "servers_key": "mcpServers",
+            "detection_hint": Path.cwd() / ".claude",  # detect by .claude/ dir presence
         },
         {
             "name": "VS Code",
@@ -199,7 +200,7 @@ def generate_server_entry(
 
     For MCP hosts (Claude Desktop, Cursor, Claude Code): no LLM config
     is needed — the host's own LLM handles NL reasoning and calls
-    ``get_schema`` + ``build_sql`` directly.
+    ``get_schema`` + ``ask_boyce`` directly.
 
     LLM config is only needed if you want ``ask_boyce`` to work in
     self-contained mode (VS Code extension, HTTP API, Direct CLI).
