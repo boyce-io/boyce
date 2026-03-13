@@ -30,5 +30,8 @@ jobs:
       - name: Run verify_eyes
         run: python boyce/tests/verify_eyes.py
 
+      - name: Run CLI smoke test
+        run: python boyce/tests/test_cli_smoke.py
+
       - name: Run pytest suite
         run: python -m pytest boyce/tests/ -v
