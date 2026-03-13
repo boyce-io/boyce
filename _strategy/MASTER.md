@@ -365,10 +365,8 @@ Pre-publish support infrastructure in place:
   snapshot issues, NL→SQL, DB connection, HTTP API
 - `README.md` — Support section added, links to issue templates and FAQ
 
-**ACTION NEEDED:** Issue templates and docs currently reference will@boyce.io,
-but boyce.io email is not yet functional (domain in transfer). Temporarily
-replace all will@boyce.io references with will@convergentmethods.com before
-publish. Swap back to will@boyce.io once domain DNS is configured.
+**COMPLETE (2026-03-13):** All will@boyce.io references replaced with will@convergentmethods.com
+in issue templates, README, and docs. Swap back to will@boyce.io once domain DNS is configured.
 
 **Gate:** Will has personally tested all surfaces. `pip install boyce` works in a clean env. Real queries produce correct results. Version decision made by Will on Thursday March 12.
 

@@ -2,7 +2,7 @@
 
 Common issues and fixes. If you're still stuck after trying these, open a
 [Setup Help issue](https://github.com/boyce-io/boyce/issues/new?template=setup_help.yml)
-or email [will@boyce.io](mailto:will@boyce.io).
+or email [will@convergentmethods.com](mailto:will@convergentmethods.com).
 
 ---
 
@@ -203,4 +203,4 @@ Requests must include `Authorization: Bearer your-secret-token`.
 ## Still stuck?
 
 - Open a [Setup Help issue](https://github.com/boyce-io/boyce/issues/new?template=setup_help.yml)
-- Email [will@boyce.io](mailto:will@boyce.io) for issues involving credentials or sensitive config
+- Email [will@convergentmethods.com](mailto:will@convergentmethods.com) for issues involving credentials or sensitive config
