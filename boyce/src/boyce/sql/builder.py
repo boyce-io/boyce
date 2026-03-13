@@ -270,13 +270,26 @@ class SQLBuilder:
         metrics = concept_map.get("metrics", [])
         for metric in metrics:
             metric_name = metric.get("metric_name", "")
+            field_id = metric.get("field_id", "")
             if metric_name:
-                quoted = self.dialect.quote_identifier(metric_name)
+                # Resolve field_id → actual column name for the aggregation expression
+                col_name = None
+                if field_id:
+                    field_def = snapshot.fields.get(field_id)
+                    if field_def:
+                        col_name = field_def.name
+                    else:
+                        # field_id format is "field:Table:ColumnName" — extract last segment
+                        col_name = field_id.split(":")[-1] if ":" in field_id else field_id
+                if not col_name:
+                    col_name = metric_name
+                col_quoted = self.dialect.quote_identifier(col_name)
+                alias_quoted = self.dialect.quote_identifier(metric_name)
                 if aggregation_required:
                     agg_func = metric.get("aggregation_type", "SUM")
-                    select_fields.append(f"{agg_func}({quoted}) AS {quoted}")
+                    select_fields.append(f"{agg_func}({col_quoted}) AS {alias_quoted}")
                 else:
-                    select_fields.append(quoted)
+                    select_fields.append(f"{col_quoted} AS {alias_quoted}")
 
         if not select_fields:
             select_fields.append("*")
@@ -504,39 +517,47 @@ class SQLBuilder:
         if aggregation_required and grouping_fields:
             quoted_fields: List[str] = []
 
-            for field_name in grouping_fields:
-                # Check if this field needs DATE_TRUNC in GROUP BY
-                if date_trunc_field and date_trunc_unit:
-                    field_id = None
+            for field_ref in grouping_fields:
+                # grouping_fields may contain field_ids ("field:Table:Col") or plain names.
+                # Resolve to the actual column name via snapshot.
+                field_id = None
+                col_name = field_ref
+                if field_ref in snapshot.fields:
+                    field_id = field_ref
+                    col_name = snapshot.fields[field_ref].name
+                elif ":" in field_ref:
+                    # "field:Table:ColumnName" — extract last segment as fallback
+                    col_name = field_ref.split(":")[-1]
+                    # Also try to find the actual field_id for DATE_TRUNC lookup
                     for fid, fdef in snapshot.fields.items():
-                        if fdef.name == field_name:
+                        if fid == field_ref or fdef.name == col_name:
                             field_id = fid
+                            col_name = fdef.name
                             break
 
-                    if field_id == date_trunc_field:
-                        field_def = snapshot.fields.get(field_id)
-                        if field_def:
-                            entity = snapshot.entities.get(field_def.entity_id)
-                            if entity:
-                                table_quoted = self.dialect.quote_identifier(entity.name)
-                                field_quoted = self.dialect.quote_identifier(field_name)
-                                date_trunc_expr = self.dialect.render_date_trunc(
-                                    f"{table_quoted}.{field_quoted}",
-                                    date_trunc_unit
-                                )
-                                quoted_fields.append(date_trunc_expr)
-                            else:
-                                date_trunc_expr = self.dialect.render_date_trunc(
-                                    self.dialect.quote_identifier(field_name),
-                                    date_trunc_unit
-                                )
-                                quoted_fields.append(date_trunc_expr)
+                # Check if this field needs DATE_TRUNC in GROUP BY
+                if date_trunc_field and date_trunc_unit and field_id == date_trunc_field:
+                    field_def = snapshot.fields.get(field_id)
+                    if field_def:
+                        entity = snapshot.entities.get(field_def.entity_id)
+                        if entity:
+                            table_quoted = self.dialect.quote_identifier(entity.name)
+                            field_quoted = self.dialect.quote_identifier(col_name)
+                            date_trunc_expr = self.dialect.render_date_trunc(
+                                f"{table_quoted}.{field_quoted}",
+                                date_trunc_unit
+                            )
+                            quoted_fields.append(date_trunc_expr)
                         else:
-                            quoted_fields.append(self.dialect.quote_identifier(field_name))
+                            date_trunc_expr = self.dialect.render_date_trunc(
+                                self.dialect.quote_identifier(col_name),
+                                date_trunc_unit
+                            )
+                            quoted_fields.append(date_trunc_expr)
                     else:
-                        quoted_fields.append(self.dialect.quote_identifier(field_name))
+                        quoted_fields.append(self.dialect.quote_identifier(col_name))
                 else:
-                    quoted_fields.append(self.dialect.quote_identifier(field_name))
+                    quoted_fields.append(self.dialect.quote_identifier(col_name))
 
             if quoted_fields:
                 return f"GROUP BY {', '.join(quoted_fields)}"
