@@ -1,7 +1,7 @@
 # Plan: Block 1 — Ship It
 **Status:** Active — Phase A complete, Phase B in progress
 **Created:** 2026-02-28
-**Updated:** 2026-03-07
+**Updated:** 2026-03-13
 **Depends on:** Block 0 (naming) — COMPLETE
 
 ## Goal
@@ -20,15 +20,16 @@ All engineering work done. No open items.
 
 - [x] Rename codebase (all imports, CLI, pyproject.toml, docs → `boyce`)
 - [x] Secure namespace (PyPI 0.0.1 placeholder, GitHub org `boyce-io`, domain `boyce.io`)
-- [x] 8 MCP tools: `ingest_source`, `ingest_definition`, `get_schema`, `build_sql`, `solve_path`, `ask_boyce`, `query_database`, `profile_data`
-- [x] `boyce-init` setup wizard (auto-detects and configures Claude Desktop, Cursor, Claude Code)
+- [x] 7 MCP tools: `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce` (tri-modal Mode A/B/C), `validate_sql`, `query_database`, `profile_data`
+  - `build_sql` and `solve_path` internalized (not MCP tools; host LLM constructs StructuredFilter and calls `ask_boyce` Mode A)
+- [x] `boyce-init` setup wizard (auto-detects and configures **6 platforms**: Claude Desktop, Cursor, Claude Code, VS Code, JetBrains/DataGrip, Windsurf)
 - [x] Direct CLI (`boyce ask "..."` and `boyce chat "..."`)
 - [x] HTTP API (`boyce serve --http`, Starlette + Bearer auth, `/chat` intent routing)
 - [x] Public API exports (`from boyce import process_request, SemanticSnapshot, lint_redshift_compat, SemanticGraph`)
 - [x] `src` layout migration (`boyce/src/boyce/`) — CWD namespace conflict eliminated
 - [x] Client reference strip + git history squash — repo is sterile
 - [x] Pre-commit hook active (blocks sensitive terms from future commits)
-- [x] 260 tests passing, ~10s, zero external dependencies
+- [x] 289 tests passing (~10s, zero external dependencies); 17 CLI smoke checks
 
 ---
 
@@ -115,7 +116,7 @@ Starts after Phase C content and directories are done.
 ---
 
 ## Acceptance Criteria
-- [x] Phase A: all engineering complete, 260 tests green
+- [x] Phase A: all engineering complete, 289 tests green (post-architecture-revision)
 - [ ] Phase B: Will has personally tested all MCP hosts and at least 2 non-MCP surfaces
 - [ ] Phase B: query battery run — results recorded, failures resolved
 - [ ] Phase B: version decision made by Will on Thursday March 12

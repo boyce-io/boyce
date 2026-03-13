@@ -1,6 +1,6 @@
 # Boyce — Master Directive
 **This is the single source of truth for planning and execution.**
-**Last updated:** 2026-03-07
+**Last updated:** 2026-03-13
 **All other planning documents are subordinate to this file.**
 **Product name:** Boyce — named for [Raymond F. Boyce](https://en.wikipedia.org/wiki/Raymond_F._Boyce), co-inventor of SQL (1974)
 **Domain:** boyce.io (purchased 2026-03-04)
@@ -96,17 +96,20 @@ Boyce has two delivery paths, and they use LLMs completely differently:
 
 | Path | Who has the LLM? | What Boyce needs | User configures |
 |------|------------------|-----------------|-----------------|
-| **MCP hosts** (Claude Code, Cursor, Claude Desktop, Cline) | The host has it | Nothing — host LLM calls `get_schema`, reasons, calls `build_sql` | Just `boyce-init` (no API key) |
-| **Non-MCP clients** (VS Code ext, CLI `ask`/`chat`, HTTP API) | Nobody | Boyce uses its internal planner (`ask_boyce`) | `BOYCE_PROVIDER` + `BOYCE_MODEL` + API key |
+| **MCP hosts** (Claude Code, Cursor, Claude Desktop, VS Code, JetBrains, Windsurf) | The host has it | Nothing — host LLM calls `get_schema`, constructs a StructuredFilter, calls `ask_boyce` | Just `boyce-init` (no API key) |
+| **Non-MCP clients** (CLI `ask`/`chat`, HTTP API) | Nobody | Boyce uses its internal planner (NL path in `ask_boyce`) | `BOYCE_PROVIDER` + `BOYCE_MODEL` + API key |
 
 **If you use an MCP host, you do not need to configure any LLM provider or API key for Boyce.**
-The host's LLM reads the schema via `get_schema`, constructs a `StructuredFilter`, and passes
-it to `build_sql`. Boyce compiles deterministic SQL with zero LLM calls. This is the primary
-adoption path and the reason `get_schema` + `build_sql` exist as separate tools.
+The host's LLM reads the schema via `get_schema`, constructs a StructuredFilter, and passes
+it to `ask_boyce` (Mode A). Boyce compiles deterministic SQL with zero LLM calls on its side.
 
-`ask_boyce` and the internal planner are not backward compat — they are essential for non-MCP
-delivery where no host LLM exists. The VS Code extension, Direct CLI, and HTTP API all depend
-on the internal planner. `BOYCE_PROVIDER` is required only for those surfaces.
+`ask_boyce` is tri-modal:
+- **Mode A** (StructuredFilter provided): deterministic pipeline, zero credentials
+- **Mode B** (NL + credentials configured): QueryPlanner → kernel
+- **Mode C** (NL + no credentials): returns schema guidance so host LLM can construct the filter — two round-trips, zero configuration
+
+`build_sql` and `solve_path` are now internal functions (not MCP tools). The HTTP API still
+calls them internally. `BOYCE_PROVIDER` is required only for non-MCP surfaces using Mode B.
 
 ### Structure Is the Ladder Rung Above Context
 
@@ -447,43 +450,59 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 
 ---
 
-## Current Technical State (as of 2026-03-05)
+## Current Technical State (as of 2026-03-13)
 
 ### What works end-to-end
-- Full NL → SQL pipeline: QueryPlanner (LiteLLM) → kernel → SQL (`ask_boyce`)
-- Host-LLM path: `get_schema` returns full schema + StructuredFilter docs; `build_sql` compiles deterministically — no Boyce LLM needed
+- **7 MCP tools**: `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce` (tri-modal), `validate_sql`, `query_database`, `profile_data`
+- **ask_boyce tri-modal**: Mode A (StructuredFilter → zero credentials), Mode B (NL + BOYCE_PROVIDER), Mode C (NL fallback → schema guidance for host LLM). Zero-config MCP path.
+- `validate_sql` new tool: EXPLAIN pre-flight + Redshift lint + NULL risk scan (WHERE clause heuristic)
+- `get_schema` and `ask_boyce` include Tier 2 schema freshness warnings (mtime check, auto re-ingest)
+- `ask_boyce` includes Tier 3 DB drift detection (information_schema comparison, async)
+- Source path tracked in snapshot metadata for freshness checks
+- Host-LLM path: `get_schema` returns full schema + StructuredFilter docs with 3 concrete examples
+- `build_sql` and `solve_path` are internal functions (callable from HTTP API, not MCP tools)
 - Deterministic multi-dialect SQL: Redshift, Postgres, DuckDB, BigQuery
 - Dijkstra join-path resolution (NetworkX SemanticGraph)
 - Live Postgres adapter: read-only, asyncpg, EXPLAIN pre-flight, column profiling
-- Null Trap detection at query time (Stage 2.5 in `ask_boyce` and `build_sql`)
+- Null Trap detection at query time (Stage 2.5 in `ask_boyce`)
 - Redshift guardrails: lint + NULLIF cast rewrites
 - Snapshot persistence (`_local_context/`) — survives restarts
 - 10 parsers: dbt_manifest, dbt_project, lookml, sqlite, ddl, csv, parquet, django, sqlalchemy, prisma
-- Parser plugin interface: `SnapshotParser` protocol, `ParserRegistry`, auto-detection via `parse_from_path()`
+  + pre-built SemanticSnapshot JSON passthrough in `parse_from_path()`
 - Scan CLI (`boyce-scan`): walks directories, auto-detects sources, JSON report to stdout
-- Init wizard (`boyce-init`): detects + configures Claude Desktop, Cursor, Claude Code
-- Direct CLI: `boyce ask "..."` (NL→SQL, stdout), `boyce chat "..."` (conversational, intent routing)
+- Init wizard (`boyce-init`): detects + configures **6 platforms**: Claude Desktop, Cursor, Claude Code, VS Code (servers key), JetBrains/DataGrip (via .idea/ detection + post-config tip), Windsurf
+- Direct CLI: `boyce ask "..."` (NL→SQL, stdout), `boyce chat "..."` (routes through ask_boyce, no intent classifier)
 - HTTP API: `boyce serve --http` (Starlette, Bearer auth, `/schema` `/build-sql` `/ask` `/chat` `/query` `/profile` `/ingest`)
 - Business definitions: `ingest_definition` MCP tool + `DefinitionStore`
 - Audit logging: `AuditLog` append-only JSONL, called from `server.py`
 - Demo kit: docker scenario, seed data, DEMO_SCRIPT.md
-- **260 pytest tests (256 pass, 4 skipped when pyarrow absent), all passing in ~10s**
+- **289 pytest tests (283 pass, 6 skipped when pyarrow absent), all passing in ~10s**
+- **17 CLI smoke checks** all passing (`test_cli_smoke.py`)
 
 ### Delivery surface
 | Surface | Entry point | Use case |
 |---------|------------|----------|
-| MCP stdio | `boyce` (no args) | Claude Desktop, Cursor, Claude Code, Cline, Continue.dev, Windsurf |
+| MCP stdio | `boyce` (no args) | Claude Desktop, Cursor, Claude Code, VS Code, JetBrains, Windsurf, Cline, Continue.dev |
 | Direct CLI | `boyce ask "..."` | Shell scripts, one-off queries |
 | Conversational CLI | `boyce chat "..."` | Interactive terminal use |
-| HTTP REST | `boyce serve --http` | VS Code extension, web dashboards, cron jobs |
-| VS Code extension | Marketplace install | 30M+ VS Code users — first monetization surface (Block 1b, scaffold built 2026-03-11) |
+| HTTP REST | `boyce serve --http` | Web dashboards, cron jobs |
 | Python library | `from boyce import kernel` | Custom agent integrations |
 
+### VS Code Extension — Deprioritized (CEO Directive 2026-03-13)
+VS Code has native GA MCP support. Boyce works in VS Code via `.vscode/mcp.json` (configured by `boyce-init`).
+The `extension/` scaffold is preserved but not actively developed. VS Code extension becomes Option 2 (UX sugar)
+when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension.md`.
+
 ### Recent completions
-- **2026-03-11:** VS Code extension scaffold — `extension/` directory, 11 files, 1,424 LOC TypeScript, compiles clean. Steps 1-4 of Block 1b (scaffold, HTTP client, chat panel, schema tree) built in one session.
+- **2026-03-13:** Architectural overhaul (CEO/Opus directive, 10 changes):
+  - ask_boyce tri-modal (Mode A/B/C), validate_sql new tool, build_sql/solve_path internalized (7-tool surface),
+  - StructuredFilter docs updated with examples, intent classifier removed, boyce-init expands to 6 platforms,
+  - Schema freshness Tier 2 (mtime check + auto re-ingest) + Tier 3 (live DB drift detection),
+  - Source path tracking in parsers. 289 tests green.
+- **2026-03-11:** VS Code extension scaffold — `extension/` directory, 11 files, 1,424 LOC TypeScript, compiles clean. Deprioritized same day (VS Code native MCP is the path).
+- **2026-03-11:** Full repo audit — deleted stale docs, fixed stale references, `legacy_v0/` deleted, semantic review complete
 - **2026-03-07:** `src` layout migration — `boyce/boyce/` → `boyce/src/boyce/`; CWD namespace conflict eliminated; 260 tests green
 - **2026-03-07:** Client reference strip (Phases 1-3) + git history squash — repo is clean, pre-commit hook active
-- **2026-03-07:** Sprint plan locked — Phase A complete, Phase B testing sprint week of March 9
 - **2026-03-06:** Delivery surface expansion — `get_schema`, `build_sql`, `boyce-init`, Direct CLI, HTTP API (52 new tests)
 - **2026-03-05:** Full codebase rename to `boyce` (package, module, env vars, MCP tools, docs, CI)
 - **2026-03-04:** Name confirmed as Boyce. Domain `boyce.io` purchased.
@@ -494,26 +513,25 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 ### Key files
 | File | Role |
 |------|------|
-| `boyce/src/boyce/server.py` | 8 MCP tools; `get_schema`, `build_sql`, `ask_boyce`, etc. |
+| `boyce/src/boyce/server.py` | 7 MCP tools; ask_boyce (tri-modal), validate_sql, get_schema, etc. |
 | `boyce/src/boyce/kernel.py` | Deterministic SQL kernel |
 | `boyce/src/boyce/types.py` | Protocol contract (SemanticSnapshot, Entity, FieldDef) |
-| `boyce/src/boyce/cli.py` | Unified CLI dispatcher (`boyce ask`, `boyce chat`, `boyce serve`) |
+| `boyce/src/boyce/cli.py` | Unified CLI dispatcher (no intent classifier — routes through ask_boyce) |
 | `boyce/src/boyce/http_api.py` | Starlette REST API with Bearer auth + `/chat` endpoint |
-| `boyce/src/boyce/init_wizard.py` | `boyce-init` — MCP host config wizard |
+| `boyce/src/boyce/init_wizard.py` | `boyce-init` — 6-platform MCP host config wizard |
 | `boyce/src/boyce/scan.py` | Scan CLI (`boyce-scan`) — directory walker + auto-detect |
 | `boyce/src/boyce/adapters/postgres.py` | Read-only DB adapter |
 | `boyce/src/boyce/planner/planner.py` | NL → StructuredFilter |
 | `boyce/src/boyce/parsers/dbt.py` | dbt manifest + YAML parsers |
-| `boyce/src/boyce/parsers/detect.py` | Auto-detect + parse_from_path |
+| `boyce/src/boyce/parsers/detect.py` | Auto-detect + parse_from_path (+ snapshot JSON passthrough, source_path tracking) |
 | `boyce/tests/conftest.py` | Ensures real `mcp` package loaded before stub guards |
-| `boyce/tests/test_kernel_tools.py` | 30 tests for `get_schema`, `build_sql`, `_validate_structured_filter` |
-| `boyce/tests/test_init.py` | 22 tests for init wizard |
+| `boyce/tests/test_kernel_tools.py` | 37 tests for `get_schema`, `ask_boyce` Mode A/C, `_validate_structured_filter` |
+| `boyce/tests/test_validate_sql.py` | 15 tests for `validate_sql`, `_scan_null_risk`, freshness, drift |
+| `boyce/tests/test_init.py` | 31 tests for init wizard (incl. VS Code, JetBrains, Windsurf) |
 | `boyce/tests/verify_eyes.py` | 15 offline tests (~4s) |
 | `boyce/tests/test_parsers.py` | Parser tests (all 10 parsers) |
 | `boyce/tests/test_scan.py` | Scan CLI tests (10 tests) |
-| `extension/src/extension.ts` | VS Code extension entry point (5 commands, status bar) |
-| `extension/src/client.ts` | `BoyceClient` — HTTP client for all 8 API endpoints |
-| `extension/src/process.ts` | `BoyceProcess` — auto-spawns `boyce serve --http` |
+| `boyce/tests/test_cli_smoke.py` | 17 CLI smoke checks (entry points, hangs, exit codes) |
 | `_strategy/MASTER.md` | **This file** |
 
 ---
