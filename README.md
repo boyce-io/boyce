@@ -316,6 +316,7 @@ _management_documents/          ← Architecture docs and decision records
 ## Support
 
 - **Troubleshooting guide:** [docs/troubleshooting.md](docs/troubleshooting.md)
+- **Local LLM setup (Ollama/vLLM):** [docs/local-llm-setup.md](docs/local-llm-setup.md)
 - **Bug reports:** [GitHub Issues](https://github.com/boyce-io/boyce/issues/new?template=bug_report.yml)
 - **Setup help:** [GitHub Issues](https://github.com/boyce-io/boyce/issues/new?template=setup_help.yml)
 - **Email:** [will@convergentmethods.com](mailto:will@convergentmethods.com) — for issues involving credentials or sensitive config
