@@ -35,6 +35,18 @@ Follows the Mandatory Model Gate defined in `~/.claude/CLAUDE.md`.
 
 ---
 
+## Repo Folder Visibility Convention
+
+Every top-level folder signals its audience by its prefix:
+
+| Prefix | Audience | Examples |
+|---|---|---|
+| `_name/` | **Internal only** — planning, strategy, management scratch. Never referenced in public docs. | `_strategy/`, `_management_documents/` |
+| `name/` (no prefix) | **Public / contributor-visible** — source, tests, docs, demo. What a user or contributor sees on GitHub. | `boyce/`, `docs/`, `demo/`, `extension/`, `test_warehouses/` |
+| `.name/` | **Runtime / tooling** — config files, generated data, IDE/tool artifacts. Usually gitignored or system-managed. | `.boyce/`, `.claude/`, `.venv/` |
+
+`_local_context/` is a runtime snapshot store (underscore = internal; contents are gitignored). `.claude/handoffs/` is where CEO→CTO architectural handoff documents live between sessions.
+
 ## Tech Stack
 - Language: Python 3.10+ (repo `.venv` is 3.12 — system `python3` is 3.9, do not use it)
 - Database: Amazon Redshift 1.0.121035 (PostgreSQL 8.0.2 base)
