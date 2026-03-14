@@ -78,9 +78,11 @@ All engineering work done. No open items.
 - [ ] Live DB execution (Pagila Docker + `query_database`)
 - [ ] `pip install boyce` in a clean venv
 
-### Remaining — Version Decision + Publish
+### Remaining — Cross-Platform + Version Decision + Publish
 
-- [ ] Finish compiler testing (multi-hop, temporal, validate_sql, dbt/LookML parsers)
+- [ ] Finish compiler testing on Claude Code (multi-hop, temporal, validate_sql, dbt/LookML parsers)
+- [ ] Test on **Cursor** (must-have): boyce-init → MCP connection → 2+ queries
+- [ ] Test on **VS Code** (stretch): boyce-init → MCP connection → 1+ query (uses `"servers"` key)
 - [ ] Confirm NULL trap fires on demo scenario (`demo/magic_moment/`)
 - [ ] Version decision: v0.1.0 (ship, iterate) or iterate further
 - [ ] If go: `cd boyce && python -m build && uv publish` (Will executes)
