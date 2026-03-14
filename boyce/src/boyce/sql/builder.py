@@ -306,7 +306,12 @@ class SQLBuilder:
                 alias_quoted = self.dialect.quote_identifier(metric_name)
                 if aggregation_required:
                     agg_func = metric.get("aggregation_type", "SUM")
-                    select_fields.append(f"{agg_func}({col_quoted}) AS {alias_quoted}")
+                    # COUNT_DISTINCT requires COUNT(DISTINCT ...) syntax, not a bare function call.
+                    if agg_func.upper() == "COUNT_DISTINCT":
+                        agg_expr = f"COUNT(DISTINCT {col_quoted})"
+                    else:
+                        agg_expr = f"{agg_func}({col_quoted})"
+                    select_fields.append(f"{agg_expr} AS {alias_quoted}")
                 else:
                     select_fields.append(f"{col_quoted} AS {alias_quoted}")
 
