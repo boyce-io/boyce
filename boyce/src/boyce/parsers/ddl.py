@@ -232,6 +232,10 @@ def _parse_ddl_sql(raw_sql: str, source_label: str, extra_metadata: Optional[dic
     Returns:
         SemanticSnapshot with entities (tables), fields (columns), and joins (FKs).
     """
+    # Strip UTF-8 BOM — SQL Server tools write UTF-8-with-BOM; the BOM breaks
+    # the leading CREATE TABLE regex match on the first statement.
+    raw_sql = raw_sql.replace("\ufeff", "")
+
     # Strip T-SQL GO batch separators
     raw_sql = re.sub(r"\nGO\b", "\n;", raw_sql, flags=re.IGNORECASE)
 
