@@ -125,6 +125,30 @@ All engineering work done. No open items.
 **Total: 15 bugs found and fixed across 4 sessions. 289 tests green throughout.**
 **Commit pushed: `63ddeaa` — all session 3-4 fixes + live DB ingest feature.**
 
+**Additional bugs found and fixed (session 5 — March 14 early morning):**
+- [x] Bug 16: `COUNT_DISTINCT` emitted verbatim — fixed in `builder.py`
+- [x] Bug 17: Stale definitions survive snapshot overwrite — `DefinitionStore.clear()` added, called on save
+- [x] Bug 18: DDL directory not handled — `DDLParser.detect()/parse()` extended for directories
+- [x] Bug 18b: UTF-8 BOM breaks T-SQL DDL parsing — stripped at top of `_parse_ddl_sql()`
+- [x] Bug 18c: Bracket-quoted multi-word column names misparse — `_extract_col_name_and_rest()` added
+- [x] NULL trap warning: int filter value rendered as '1' not 1 — fixed with `repr()`
+- [x] Doc discrepancies: 4 files updated (tool counts, build_sql/solve_path references removed)
+
+**Battery 4 complete (session 5 — all 8 tests run):**
+| Test | Result |
+|------|--------|
+| 1 Prisma parser | ✅ PASS |
+| 2 SQLAlchemy parser | ✅ PASS |
+| 3 Multiple dims + COUNT_DISTINCT | ✅ PASS (Bug 16 fixed) |
+| 4 Redshift dialect | ✅ PASS |
+| 5 solve_path | ✅ N/A (internal only, by design) |
+| 6 Snapshot overwrite | ✅ PASS (Bug 17 fixed) |
+| 7 WWI DDL directory | ✅ PASS (Bugs 18/18b/18c fixed) |
+| 8 NULL trap on live DB | ✅ PASS (fires at 100% NULLs, threshold=5%) |
+
+**Total: 21 bugs found and fixed across 5 sessions. 289 tests green throughout.**
+**Commits pushed: `725c85f` → `6313744`**
+
 **Still untested:**
 - [ ] Cursor cross-platform (must-have for publish gate)
 - [ ] VS Code cross-platform (stretch)
