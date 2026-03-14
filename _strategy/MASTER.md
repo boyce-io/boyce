@@ -494,6 +494,11 @@ The `extension/` scaffold is preserved but not actively developed. VS Code exten
 when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension.md`.
 
 ### Recent completions
+- **2026-03-14 (early morning):** Battery 5-6 + Opus refactor:
+  - Battery 5 (10 tests): 2 bugs found — Bug 22 (column collision, bare field names), Bug 23 (filter on non-joined entity). Both fixed.
+  - Opus refactor: extracted `_resolve_field_ref()` helper, eliminated root cause of 5 builder bugs (4, 5, 10, 16, 22). Deleted 66 lines dead code. Net -94 lines. Commit: `ec8bd15`.
+  - Battery 6 (4 tests): 1 bug found — Bug 24 (auth errors hit generic handler instead of Mode C fallback). Fixed. Commit: `fb37f6b`.
+  - **Total: 24 bugs found and fixed across 7 sessions. 289 tests green. Cursor cross-platform test is next gate.**
 - **2026-03-13 (late evening):** MCP integration testing session 3 — 6 consecutive passes, no new failures:
   - 4 bugs found and fixed: safety.py missing 4 Redshift lint rules (CONCAT, STRING_AGG, FILTER, RECURSIVE),
     concept_map.fields ignored in SELECT (builder fell back to SELECT *), filter operator aliases

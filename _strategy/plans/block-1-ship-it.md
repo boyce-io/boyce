@@ -208,9 +208,49 @@ All engineering work done. No open items.
 - [x] Live DB round-trip (Pagila Docker + `query_database` + `profile_data` + `ingest_source` via MCP) — PASSED
 - [x] Commit + push all session fixes (15 bugs + live DB ingest)
 
-### Tomorrow (March 14) — Cursor + Version Decision + Publish
+### March 14 Morning — Cursor Cross-Platform Test
 
-- [ ] Test on **Cursor** (must-have): boyce-init → MCP connection → 2+ queries — hard gate for publish
+**This is the last must-have gate before version decision + publish.**
+
+**Prerequisites:**
+1. Docker running: `docker compose up -d` in `boyce/tests/validation/` (Pagila on `localhost:5433`)
+2. Cursor installed with MCP support enabled
+
+**Step 1 — Run `boyce-init` from project root:**
+```bash
+cd /Users/willwright/ConvergentMethods/products/Boyce
+.venv/bin/boyce-init
+```
+- Should detect Cursor (looks for `.cursor/` dir or Cursor app)
+- Writes `.cursor/mcp.json` with boyce server entry
+- When prompted for DB URL: `postgresql://boyce:password@localhost:5433/pagila`
+- Skip LLM config (not needed — Cursor's own LLM is the planner)
+
+**Step 2 — Verify MCP connection in Cursor:**
+- Open the Boyce project in Cursor
+- Check MCP server status (Cursor Settings → MCP or equivalent)
+- Boyce should show as connected with 7 tools available
+
+**Step 3 — Ingest Pagila snapshot:**
+Ask Cursor: "Use the boyce ingest_source tool to ingest the database at postgresql://boyce:password@localhost:5433/pagila with snapshot name pagila"
+- Pass: returns snapshot with ~29 entities, ~171 fields, ~36 joins
+
+**Step 4 — Query 1 (single entity, simple aggregation):**
+Ask Cursor: "Using boyce, how many films are in each rating category?"
+- Pass: Cursor calls get_schema, constructs StructuredFilter, calls ask_boyce Mode A
+- SQL should be: `SELECT "film"."rating", COUNT("film"."film_id") ... FROM "film" GROUP BY ...`
+- Validation status: "verified"
+
+**Step 5 — Query 2 (multi-entity join):**
+Ask Cursor: "Using boyce, what are the top 10 customers by total rental count?"
+- Pass: Cursor constructs a StructuredFilter joining rental → customer
+- SQL should have JOIN, GROUP BY, correct table qualification
+
+**Decision gate after Cursor:**
+- If both queries produce correct SQL → proceed to version decision
+- If Cursor MCP doesn't connect or queries fail → debug, fix, retry
+
+**After Cursor passes:**
 - [ ] Test on **VS Code** (stretch): boyce-init → MCP connection → 1+ query (uses `"servers"` key)
 - [ ] Version decision: v0.1.0 (ship, iterate) or iterate further — after Cursor passes
 - [ ] If go: version bump in `pyproject.toml`, `cd boyce && python -m build && uv publish` (Will executes)
