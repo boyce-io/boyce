@@ -158,7 +158,7 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 
 | Concern | File |
 |---|---|
-| **MCP entry point** (8 tools) | `server.py` |
+| **MCP entry point** (7 tools) | `server.py` |
 | **Deterministic kernel** | `kernel.py` — `process_request(snapshot, filter)` |
 | **Semantic graph** | `graph.py` — `SemanticGraph` (NetworkX MultiDiGraph) |
 | **Protocol contract** | `types.py` — `SemanticSnapshot`, `Entity`, `FieldDef`, `JoinDef` |
@@ -174,18 +174,19 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 | Validation + hashing | `validation.py` — `validate_snapshot()`, `_compute_snapshot_hash()` |
 | Audit log | `audit.py` — `AuditLog` (append-only JSONL) |
 
-### MCP Tools (8)
+### MCP Tools (7)
 
 | Tool | Purpose |
 |---|---|
 | `ingest_source` | Parse + ingest a SemanticSnapshot from any supported format |
 | `ingest_definition` | Store a certified business definition (injected into planner context at query time) |
-| `get_schema` | Return full schema (entities, fields, joins) for host-LLM reasoning |
-| `build_sql` | Deterministic SQL from StructuredFilter (no Boyce LLM needed) |
-| `solve_path` | Find optimal semantic join path between two entities via Dijkstra |
-| `ask_boyce` | Full NL → SQL pipeline with NULL trap detection and EXPLAIN pre-flight |
+| `get_schema` | Return full schema (entities, fields, joins) + StructuredFilter docs for host-LLM reasoning |
+| `ask_boyce` | Tri-modal NL→SQL: Mode A (StructuredFilter, zero credentials), Mode B (NL+LLM), Mode C (NL fallback) |
+| `validate_sql` | Validate hand-written SQL — EXPLAIN pre-flight, Redshift lint, NULL risk — without executing |
 | `query_database` | Execute read-only SELECT against live database (two-level write rejection) |
 | `profile_data` | Profile a column: null count/pct, distinct count, min/max |
+
+Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host LLM uses `get_schema` + `ask_boyce` Mode A instead.
 
 ### Key Tests / Scripts
 

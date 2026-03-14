@@ -35,9 +35,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://boyce.io"
+Homepage = "https://convergentmethods.com/boyce/"
+Documentation = "https://convergentmethods.com/boyce/docs/"
 Repository = "https://github.com/boyce-io/boyce"
 "Bug Tracker" = "https://github.com/boyce-io/boyce/issues"
+Changelog = "https://github.com/boyce-io/boyce/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 postgres = ["asyncpg>=0.29.0"]
