@@ -101,9 +101,31 @@ All engineering work done. No open items.
 
 **Total: 13 bugs found and fixed across 3 sessions. 289 tests green throughout.**
 
+**Additional bugs found and fixed (session 4 — March 13 late night):**
+- [x] `concept_map.fields` ignored in SELECT — builder fell back to `SELECT *` with no dimensions/metrics; fix: use fields[] for projection
+- [x] Filter operator aliases rejected — `NOT_IN`, `IS_NULL`, `IS_NOT_NULL` not normalized to SQL spacing at validator + builder
+- [x] Django parser FK target_table used `class_name.lower()` — diverged from `db_table` override; fix: first-pass `class_to_table` map
+- [x] `SemanticSnapshot.find_join_path` unidirectional — BFS blocked all M:N junction table queries (film_category, film_actor etc.); fix: bidirectional BFS with reversed JoinDef objects
+
+**New capability (session 4):**
+- [x] `ingest_source` now accepts live PostgreSQL DSNs (`postgresql://...`) — introspects schema via PostgresAdapter + FK constraints → SemanticSnapshot. `query_database` + `profile_data` were already live.
+
+**Live DB round-trip — PASSING (Pagila Docker):**
+- [x] `ingest_source("postgresql://boyce:password@localhost:5433/pagila")` → 29e/171f/36j ✅
+- [x] `ask_boyce` Mode A — 6-entity join chain through junction table (film_category) → SQL verified ✅
+- [x] `query_database` — real results returned (Documentary $531.70 top revenue category) ✅
+- [x] `profile_data` — `rental.return_date`: 183 nulls / 1.14% ✅
+
+**`pip install boyce` in clean venv — PASSING:**
+- [x] `uv venv /tmp/boyce-cleantest && uv pip install -e boyce/` → 69 packages, no errors ✅
+- [x] `/tmp/boyce-cleantest/bin/boyce --help` → CLI starts ✅
+- [x] Public API imports (`process_request`, `SemanticSnapshot`, `lint_redshift_compat`, `SemanticGraph`) → OK ✅
+- [x] `verify_eyes.py` → 15/15 ✅
+
+**Total: 15 bugs found and fixed across 4 sessions. 289 tests green throughout.**
+**Commit pushed: `63ddeaa` — all session 3-4 fixes + live DB ingest feature.**
+
 **Still untested:**
-- [ ] Live DB execution (Pagila Docker + `query_database` + `profile_data` with real results)
-- [ ] `pip install boyce` in a clean venv
 - [ ] Cursor cross-platform (must-have for publish gate)
 - [ ] VS Code cross-platform (stretch)
 
@@ -111,9 +133,9 @@ All engineering work done. No open items.
 
 - [x] Finish compiler testing on Claude Code — 20 tests, 6 consecutive passes, all green
 - [x] Confirm NULL trap fires on demo scenario (`demo/magic_moment/`) — both dangers fire, all assertions pass
-- [ ] `pip install boyce` in clean venv — hard gate, must pass tonight
-- [ ] Live DB round-trip (Pagila Docker + `query_database` + `profile_data` via MCP) — hard gate
-- [ ] Commit + push all session 1-3 fixes (13 bug fixes)
+- [x] `pip install boyce` in clean venv — PASSED
+- [x] Live DB round-trip (Pagila Docker + `query_database` + `profile_data` + `ingest_source` via MCP) — PASSED
+- [x] Commit + push all session fixes (15 bugs + live DB ingest)
 
 ### Tomorrow (March 14) — Cursor + Version Decision + Publish
 
