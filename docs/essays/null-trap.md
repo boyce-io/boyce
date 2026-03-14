@@ -14,9 +14,9 @@ SELECT COUNT(*) FROM subscriptions WHERE status = 'cancelled';
 
 The SQL is syntactically perfect. The agent is confident. The query returns **200**.
 
-The real answer is somewhere between 200 and 500. You'll never know, because 30% of your table has `status = NULL` — and every one of those rows was silently excluded from the result. The agent didn't lie to you. It didn't hallucinate. It generated correct SQL against an incomplete picture of reality, and the database did exactly what it was asked. The rows with no status weren't counted as cancelled. They also weren't counted as *not* cancelled. They simply didn't exist as far as the query was concerned.
+The real answer might be as high as 500. You'll never know, because 30% of your table has `status = NULL` — and every one of those rows was silently excluded. The agent didn't lie to you. It didn't hallucinate. It generated correct SQL against an incomplete picture of reality, and the database did exactly what it was asked. The rows with no status weren't counted as cancelled. They also weren't counted as *not* cancelled. They simply didn't exist as far as the query was concerned.
 
-This is the Null Trap, and it's about to become the most common source of silently wrong answers in AI-assisted data workflows.
+This is the **Null Trap**. It's one of the many bits of embedded knowledge in the daily workflow of a data engineer, data scientist, or data analyst. What's changed is that AI agents now run hundreds of queries a day against your data, autonomously, with no human reviewing the results. A senior engineer gets a number back and thinks "let me sanity check that." An agent gets a number back and puts it in your dashboard. The Null Trap went from an occasional human mistake to a systematic bias across every filtered result an agent produces.
 
 ---
 
@@ -26,9 +26,7 @@ Most data quality conversations focus on *wrong* data — a misspelled city name
 
 NULLs are invisible. SQL's three-valued logic guarantees it.
 
-Consider the expression `WHERE status = 'cancelled'`. In most programming languages, if `status` is null, this evaluates to false. In SQL, it evaluates to **UNKNOWN** — a third truth value that is neither true nor false. Rows where the predicate evaluates to UNKNOWN are excluded from the result set. Not flagged, not warned about — excluded.
-
-This means:
+`WHERE status = 'cancelled'` — in most programming languages, if `status` is null, this evaluates to false. In SQL, it evaluates to **UNKNOWN**. A third truth value that is neither true nor false. Rows where the predicate evaluates to UNKNOWN are excluded from the result set. Not flagged. Not warned about. Excluded.
 
 | Query | What you think it returns | What it actually returns |
 |-------|--------------------------|------------------------|
@@ -36,9 +34,9 @@ This means:
 | `WHERE status != 'cancelled'` | All non-cancelled rows | Only rows where status is a *non-null string* that isn't 'cancelled' |
 | `WHERE status = 'cancelled' OR status != 'cancelled'` | All rows | Only rows where status is not NULL |
 
-That last one is the kicker. `x = 'a' OR x != 'a'` should be a tautology. In SQL, it isn't. The 300 rows where `status` is NULL satisfy neither condition. They fall through every filter you write.
+That last one. `x = 'a' OR x != 'a'` should be a tautology. In SQL, it isn't. The 300 rows where `status` is NULL satisfy neither condition. They fall through every filter you write.
 
-A senior data engineer knows this. They've been burned by it. They habitually write `AND status IS NOT NULL` or `COALESCE(status, 'unknown')`. But the reason they know is because they learned the hard way — by shipping a wrong number, noticing it a week later, and tracing it back to a nullable column.
+A senior data engineer knows this. They've been burned by it. They habitually write `AND status IS NOT NULL` or `COALESCE(status, 'unknown')`. But the reason they know is because they shipped a wrong number, noticed it a week later, and traced it back to a nullable column.
 
 An AI agent has no such scars.
 
@@ -48,11 +46,9 @@ An AI agent has no such scars.
 
 An LLM generating SQL works from the schema. The schema says `status VARCHAR(20)`. It doesn't say "30% of this column is NULL and those rows represent users stuck in an incomplete onboarding flow." The schema describes structure. It says nothing about the *distribution* of actual data.
 
-This is the gap. An experienced human looks at a `VARCHAR` column and thinks: "Is this nullable? How many NULLs does it actually have? What do those NULLs mean in the business context?" An LLM looks at the same column and thinks: "This is a string column. I can filter on it." There's no suspicion, no instinct to check first.
+An experienced human looks at a `VARCHAR` column and thinks: "Is this nullable? How many NULLs does it actually have? What do those NULLs *mean*?" An LLM looks at the same column and thinks: "This is a string column. I can filter on it."
 
-The problem compounds when the LLM is *good at SQL*. A model that generates syntactically perfect, well-formatted, idiomatically correct SQL inspires confidence. The user sees a clean query, gets a clean result, and moves on. The number looks reasonable. Nobody checks. The 30% of missing data is a rounding error that never gets rounded.
-
-And the problem scales. A human analyst queries one table at a time, maybe runs a dozen queries in a day. An AI agent can run hundreds. Each query might have its own Null Trap — a different column, a different table, a different percentage of invisible data. The error rate isn't one bad query. It's a systematic bias across every filtered result the agent produces.
+The problem compounds when the LLM is *good at SQL*. A model that generates syntactically perfect, well-formatted, idiomatically correct SQL inspires confidence. The user sees a clean query, gets a clean result, and moves on. The number looks reasonable. Nobody checks.
 
 ---
 
@@ -63,20 +59,18 @@ Here's a table with 1,000 rows:
 | status | count | notes |
 |--------|-------|-------|
 | `'active'` | 500 | Paying customers |
-| `'cancelled'` | 200 | All logged in within the last 30 days |
+| `'cancelled'` | 200 | Explicitly cancelled |
 | `NULL` | 300 | Onboarding incomplete, data migration gap, or API error |
 
-An agent receives the instruction: *"Find all cancelled subscriptions and generate a SQL query to delete them."*
+An agent receives the question: *"How many cancelled subscriptions do we have?"*
 
 **Without data profiling**, the agent generates:
 
 ```sql
-DELETE FROM subscriptions WHERE status = 'cancelled';
+SELECT COUNT(*) FROM subscriptions WHERE status = 'cancelled';
 ```
 
-This deletes 200 rows. The 300 NULL rows remain — orphaned records that match no status filter and will accumulate forever. But the immediate damage is worse than the orphans: those 200 "cancelled" users all logged in within the last 30 days. You just destroyed data for actively engaged users.
-
-The query was correct. The intent was interpreted accurately. The result is a production incident.
+Returns 200. Clean number. Looks right. Except 300 rows — 30% of the table — were invisible to the query. Some of those NULLs might be cancelled users whose status never got written. Some might be active users stuck in a broken onboarding flow. The agent can't distinguish and didn't try. It answered a question about your data while ignoring almost a third of it.
 
 **With data profiling** — meaning the agent *looks at the column before writing the filter* — the picture changes:
 
@@ -89,53 +83,53 @@ min: 'active'
 max: 'cancelled'
 ```
 
-Now the agent sees the trap. `distinct_count: 2` when you expected 3 means something is missing. `null_pct: 30.0` tells you what. The agent can ask the right follow-up question before writing a single line of SQL: *"30% of this table has no status. What should happen to those rows?"*
+Now the agent sees the trap. `distinct_count: 2` when you expected 3 means something is missing. `null_pct: 30.0` tells you what. The agent asks the right follow-up question before writing a single line of SQL: *"30% of this table has no status. Should those rows be included in the count?"*
 
-That question, asked before the query runs, is the difference between a useful tool and a production incident.
+Asking this question **before** the query runs is the difference between a useful tool and a wrong answer that nobody catches.
 
 ---
 
 ## The Fix Isn't a Better Model
 
-This is the part that's counterintuitive. GPT-5 won't fix this. Claude 5 won't fix this. A model with a trillion parameters and perfect SQL syntax still can't see what's in your database unless something shows it. The schema is metadata. The data is reality. No amount of reasoning about metadata reveals the distribution of actual values.
+The next GPT Codex won't fix this. The next Claude Opus won't fix this. Smarter models can reason better about what data they see, but a model can't see what the infrastructure doesn't show it. The schema is metadata. The data is reality. No amount of reasoning about metadata reveals the distribution of actual values.
 
-The fix is profiling. Before the agent writes a WHERE clause against a column, something needs to check: how many NULLs? What's the actual distribution? Are the values what the schema implies they are?
+The fix is profiling. Before the agent writes a `WHERE` clause against a column, something needs to check questions like:
 
-This isn't a new idea. Data engineers have been doing this manually for decades. The `SELECT COUNT(*), COUNT(column), COUNT(DISTINCT column)` pattern is as old as SQL itself. What's new is that the agent doing the querying can't be trusted to do this automatically — because the instinct to check doesn't exist in a model that learned SQL from syntax, not from production postmortems.
+- How many NULLs are in this column?
+- What's the actual distribution?
+- Are the values actually what the schema implies they are?
 
-The profiling has to happen in the tooling layer. The infrastructure the agent uses to interact with the database needs to surface data reality alongside schema structure. Not as an optional step. Not as a follow-up query. As a first-class part of the workflow: before you filter on a column, look at it.
+Data engineers have been doing this manually for decades. `SELECT COUNT(*), COUNT(column), COUNT(DISTINCT column)` is as old as SQL itself. What's new is that the agent doing the querying doesn't have the instinct to check — because it learned SQL from syntax, not from production postmortems.
+
+The profiling has to happen in the tooling layer. Not as an optional step. Not as a follow-up query the model might or might not think to run. As infrastructure: before you filter on a column, look at it.
 
 ---
 
 ## What This Means for Production
 
-If you're giving AI agents access to production databases — and increasingly, everyone is — you need a layer between the agent's SQL generation and your database that does three things:
+If you're giving AI agents access to production databases — and increasingly, everyone is — you need a layer between the agent and your data that does three things:
 
-**1. Profile before querying.** When the agent constructs a filter on `status = 'cancelled'`, the tooling should check the NULL rate of that column and surface it. If 30% of the column is NULL, the agent needs to know before the query runs — not after the dashboard ships.
+**1. Profile before querying.** When the agent constructs a filter on `status = 'cancelled'`, the tooling checks the NULL rate of that column and surfaces it. If 30% of the column is NULL, the agent knows before the query runs — not after the dashboard ships.
 
 **2. Validate before executing.** Run `EXPLAIN` on the generated SQL before it touches real data. Catch type mismatches, missing tables, and impossible joins at planning time, not in the error log.
 
-**3. Make it deterministic.** If the same question produces different SQL on different runs, you can't audit it, reproduce it, or trust it. The SQL compilation step — from structured intent to query string — should be deterministic. Same inputs, same SQL, byte-for-byte, every time.
+**3. Make it deterministic.** If the same question produces different SQL on different runs, you can't audit it, reproduce it, or trust it. The SQL compilation step — from structured intent to query string — should be deterministic. Same inputs, same SQL, every time.
 
 ---
 
-## The Null Trap Is a Symptom
+## NULLs Are the Most Common Trap. They're Not the Only One.
 
-The deeper issue isn't NULLs specifically. It's the gap between what the schema says and what the data actually looks like. NULLs are the most common manifestation, but the same class of problem includes:
+The deeper issue is the gap between what the schema says and what the data actually looks like. NULLs are the most common case, but the same structural problem shows up as cardinality surprises (a `country` column with 3 distinct values when you expected 195), stale data (a `last_updated` max of 18 months ago because the pipeline broke), and encoding drift (`'active'` vs `'Active'` vs `'ACTIVE'` — three values a case-sensitive filter treats as different).
 
-- **Cardinality surprises.** A `country` column with 3 distinct values when you expected 195 — because 99% of your data is US/UK/CA.
-- **Stale data.** A `last_updated` column where the max value is 18 months ago — the pipeline broke and nobody noticed.
-- **Encoding inconsistency.** A `status` column with both `'active'` and `'Active'` and `'ACTIVE'` — three "distinct" values that a case-sensitive filter treats as different.
-
-In every case, the agent writes correct SQL against incorrect assumptions. The schema was technically right. The data was technically present. The answer was technically wrong. And nobody knew.
-
-The solution is the same in every case: give the agent structured access to data reality, not just data structure. Profile the columns. Surface the distributions. Let the agent reason about what the data *actually looks like* before it decides how to query it.
+Same pattern every time: correct SQL, incorrect assumptions, wrong answer. Nobody knew.
 
 ---
 
 ## Try It
 
-[Boyce](https://convergentmethods.com/boyce/) is an open-source MCP server that does exactly this. It gives AI agents structured database intelligence — schema context, data profiling, NULL trap detection, and EXPLAIN pre-flight validation — so the SQL they generate is grounded in reality, not assumptions.
+[Boyce](https://convergentmethods.com/boyce/) is an open-source MCP server that sits between your AI agent and your database. When an agent asks to query a table, Boyce profiles the relevant columns first — NULL rates, distinct values, distributions — and hands that context to the agent alongside the schema. The agent sees the trap before it writes the query, not after.
+
+Here's what that looks like in practice. Agent asks *"how many cancelled subscriptions?"* — Boyce profiles the `status` column, surfaces the 30% NULL rate, and the agent asks you what to do about it before generating SQL. No wrong answer ships. No silent exclusion.
 
 ```bash
 pip install boyce
@@ -143,7 +137,7 @@ pip install boyce
 
 MIT licensed. Works with Claude Desktop, Cursor, Claude Code, and any MCP-compatible host. No API key required.
 
-The Null Trap demo scenario described in this essay is included in the repository as a self-contained Docker setup. You can reproduce it in under five minutes.
+The Null Trap scenario from this essay is included in the repo as a self-contained Docker setup. Reproduce it in under five minutes.
 
 [GitHub](https://github.com/boyce-io/boyce) | [PyPI](https://pypi.org/project/boyce/) | [Product page](https://convergentmethods.com/boyce/)
 
