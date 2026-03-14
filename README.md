@@ -13,6 +13,8 @@ AI agents querying databases without proper context generate unreliable SQL — 
 | 👁️ **The Eyes** | `query_database` / `profile_data` — Live Postgres/Redshift adapters let your agent see real schema and real data distributions before writing a single filter. |
 | 🛡️ **The Nervous System** | Pre-flight `EXPLAIN` loops on every generated query. Bad SQL is caught at planning time, not at 2am in your on-call rotation. |
 
+**Why does this matter?** → [The Null Trap: Your AI Agent's SQL Is Correct. The Answer Is Still Wrong.](https://convergentmethods.com/boyce/null-trap/)
+
 ---
 
 ## Install
