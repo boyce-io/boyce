@@ -1305,6 +1305,11 @@ async def ask_boyce(
             sql, snapshot_id, snapshot_name, entities_resolved, validation,
             [compat_risks], [warning], [null_trap_warnings]
 
+            The returned SQL does not include ORDER BY or LIMIT. If the user's
+            question implies ranking ("top 5", "most expensive", "least common")
+            or a row cap, append ORDER BY and LIMIT to the SQL yourself before
+            passing it to query_database.
+
         Mode C — JSON string with keys:
             mode="schema_guidance", message, query, snapshot_name,
             relevant_entities, structured_filter_docs, [definitions_context]
