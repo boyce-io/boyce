@@ -506,7 +506,7 @@ async def _null_trap_check(
             "filter_operator": "=",
             "filter_value":    val,
             "risk": (
-                f"WHERE {column} = '{val}' silently excludes {null_count} NULL rows "
+                f"WHERE {column} = {val!r} silently excludes {null_count} NULL rows "
                 f"({null_pct:.1f}% of {table}). "
                 f"NULL is never equal to any value — those rows vanish without warning. "
                 f"Confirm that NULL '{column}' should be excluded before running any "

@@ -276,7 +276,7 @@ See `boyce/tests/live_fire/mock_snapshot.json` for a complete field/entity examp
 ```
 boyce/                          ← PRIMARY — headless FastMCP server + pip package
 ├── boyce/
-│   ├── server.py               ← MCP entry point (8 tools)
+│   ├── server.py               ← MCP entry point (7 tools)
 │   ├── kernel.py               ← Deterministic SQL kernel
 │   ├── graph.py                ← SemanticGraph (NetworkX)
 │   ├── safety.py               ← Redshift compatibility rails

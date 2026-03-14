@@ -99,7 +99,7 @@ the HTTP API instead of the old MCP/LSP protocol.
 - Built in: **Opus 4.6** (scaffold + HTTP client + panels in one pass, had tokens to burn)
 
 ### Step 2: HTTP Client Layer [DONE — 2026-03-11]
-- [x] `BoyceClient` class in `src/client.ts` — typed methods for all 8 API endpoints
+- [x] `BoyceClient` class in `src/client.ts` — typed methods for all 8 HTTP endpoints (7 MCP tools + `/health`)
 - [x] `BoyceProcess` class in `src/process.ts` — auto-starts `boyce serve --http` as child process
 - [x] Health check on activation (`GET /health`), polls until healthy (10s timeout)
 - [x] Bearer token auth from `.boyce/config.json` or `BOYCE_HTTP_TOKEN` env var

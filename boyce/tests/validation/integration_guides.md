@@ -55,7 +55,7 @@ which boyce          # e.g. /Users/willwright/.local/bin/boyce
 4. Test: ask Claude "Use boyce to show me what tables are available" or run `get_schema`
 
 **What to verify:**
-- MCP tools appear (8 tools: `get_schema`, `build_sql`, `ask_boyce`, etc.)
+- MCP tools appear (7 tools: `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce`, `validate_sql`, `query_database`, `profile_data`)
 - `get_schema` returns the Pagila schema after ingesting a snapshot
 - A plain-English query produces SQL
 
@@ -85,7 +85,7 @@ which boyce          # e.g. /Users/willwright/.local/bin/boyce
 **What to verify:**
 - Boyce tools available in Cursor chat
 - `get_schema` works
-- `build_sql` produces deterministic SQL from a `StructuredFilter`
+- `ask_boyce` (Mode A) produces deterministic SQL from a `StructuredFilter`
 
 ---
 
@@ -114,7 +114,7 @@ Or add globally at `~/.claude/settings.json` under the same `"mcpServers"` key.
 
 **What to verify:**
 - Boyce MCP tools available in Claude Code session
-- Claude Code can call `get_schema`, `build_sql`, `ask_boyce` directly
+- Claude Code can call `get_schema`, `ask_boyce`, `validate_sql` directly
 - End-to-end: Claude Code ingests a snapshot and generates a SQL query
 
 ---
@@ -258,7 +258,7 @@ can be generated with `pg_dump --schema-only` and passed to `ingest_source` with
 After connecting each host, run these in order:
 
 1. `get_schema` — returns entities? Shows `film`, `rental`, `customer`, `payment`?
-2. `solve_path` from `rental` to `customer` — returns a join path?
-3. `build_sql` with a simple StructuredFilter — produces valid SQL?
-4. `ask_boyce` "how many rentals were there last month?" — full pipeline works?
-5. `ask_boyce` "show me customers with NULL status" — NULL trap warning fires?
+2. `ask_boyce` (Mode A) with a StructuredFilter — produces deterministic SQL?
+3. `ask_boyce` (Mode B/C) "how many rentals were there last month?" — full pipeline works?
+4. `validate_sql` with a hand-written query — EXPLAIN pre-flight and lint run?
+5. `ask_boyce` with equality filter on nullable column — NULL trap warning fires?
