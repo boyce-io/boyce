@@ -281,9 +281,28 @@ class SQLBuilder:
                     )
                     select_fields.append(f"{date_trunc_expr} AS {self.dialect.quote_identifier(f'{field_name}_month')}")
             else:
-                # Regular dimension field
-                quoted = self.dialect.quote_identifier(field_name)
-                select_fields.append(quoted)
+                # Regular dimension field — table-qualify using snapshot.
+                # If two dimensions share the same field_name, alias each as
+                # "<table>_<field>" to avoid ambiguous column references.
+                field_def = snapshot.fields.get(field_id) if field_id else None
+                if field_def:
+                    entity = snapshot.entities.get(field_def.entity_id)
+                    if entity:
+                        table_quoted = self.dialect.quote_identifier(entity.name)
+                        field_quoted = self.dialect.quote_identifier(field_name)
+                        conflict = any(
+                            d.get("field_name") == field_name and d.get("field_id") != field_id
+                            for d in dimensions
+                        )
+                        if conflict:
+                            alias = self.dialect.quote_identifier(f"{entity.name}_{field_name}")
+                            select_fields.append(f"{table_quoted}.{field_quoted} AS {alias}")
+                        else:
+                            select_fields.append(f"{table_quoted}.{field_quoted}")
+                    else:
+                        select_fields.append(self.dialect.quote_identifier(field_name))
+                else:
+                    select_fields.append(self.dialect.quote_identifier(field_name))
 
         # Add metrics (with aggregation if required)
         metrics = concept_map.get("metrics", [])
@@ -293,16 +312,25 @@ class SQLBuilder:
             if metric_name:
                 # Resolve field_id → actual column name for the aggregation expression
                 col_name = None
+                col_entity = None
                 if field_id:
                     field_def = snapshot.fields.get(field_id)
                     if field_def:
                         col_name = field_def.name
+                        col_entity = snapshot.entities.get(field_def.entity_id)
                     else:
                         # field_id format is "field:Table:ColumnName" — extract last segment
                         col_name = field_id.split(":")[-1] if ":" in field_id else field_id
                 if not col_name:
                     col_name = metric_name
-                col_quoted = self.dialect.quote_identifier(col_name)
+                # Table-qualify the metric column reference
+                if col_entity:
+                    col_quoted = (
+                        f"{self.dialect.quote_identifier(col_entity.name)}"
+                        f".{self.dialect.quote_identifier(col_name)}"
+                    )
+                else:
+                    col_quoted = self.dialect.quote_identifier(col_name)
                 alias_quoted = self.dialect.quote_identifier(metric_name)
                 if aggregation_required:
                     agg_func = metric.get("aggregation_type", "SUM")
@@ -610,7 +638,22 @@ class SQLBuilder:
                     else:
                         quoted_fields.append(self.dialect.quote_identifier(col_name))
                 else:
-                    quoted_fields.append(self.dialect.quote_identifier(col_name))
+                    # Table-qualify via snapshot when possible
+                    if field_id:
+                        fdef = snapshot.fields.get(field_id)
+                        if fdef:
+                            entity = snapshot.entities.get(fdef.entity_id)
+                            if entity:
+                                quoted_fields.append(
+                                    f"{self.dialect.quote_identifier(entity.name)}"
+                                    f".{self.dialect.quote_identifier(col_name)}"
+                                )
+                            else:
+                                quoted_fields.append(self.dialect.quote_identifier(col_name))
+                        else:
+                            quoted_fields.append(self.dialect.quote_identifier(col_name))
+                    else:
+                        quoted_fields.append(self.dialect.quote_identifier(col_name))
 
             if quoted_fields:
                 return f"GROUP BY {', '.join(quoted_fields)}"

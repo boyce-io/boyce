@@ -258,15 +258,32 @@ def _validate_structured_filter(
             errors.append(f"dimension field_id '{fid}' not found in snapshot")
 
     # --- filters ---
+    # Build the set of entity IDs in scope: concept_map.entities + join_path
+    entity_ids_in_scope: set = set()
+    for ent in entities:
+        eid = ent.get("entity_id", "") if isinstance(ent, dict) else ent
+        if eid:
+            entity_ids_in_scope.add(eid)
+    for eid in structured_filter.get("join_path", []):
+        entity_ids_in_scope.add(eid)
+
     valid_ops = {"=", "!=", ">", ">=", "<", "<=", "IN", "NOT IN", "LIKE", "ILIKE", "IS NULL", "IS NOT NULL"}
     for filt in concept_map.get("filters", []):
-        fid = filt.get("field_id", "") if isinstance(filt, dict) else ""
+        if not isinstance(filt, dict):
+            continue
+        fid = filt.get("field_id", "")
         if fid and fid not in snapshot.fields:
             errors.append(f"filter field_id '{fid}' not found in snapshot")
-        op = filt.get("operator", "") if isinstance(filt, dict) else ""
+        op = filt.get("operator", "")
         op = _OPERATOR_ALIASES.get(op, op)  # normalise alias variants
         if op and op not in valid_ops:
             errors.append(f"invalid filter operator '{op}'; expected one of {sorted(valid_ops)}")
+        fent_id = filt.get("entity_id", "")
+        if fent_id and fent_id in snapshot.entities and fent_id not in entity_ids_in_scope:
+            errors.append(
+                f"filter entity_id '{fent_id}' is not in concept_map.entities or join_path; "
+                f"add '{fent_id}' to join_path to filter on this entity"
+            )
 
     # --- temporal_filters ---
     valid_temporal = {"trailing_interval", "leading_interval", "between", "on_or_after", "on_or_before", "equals"}
