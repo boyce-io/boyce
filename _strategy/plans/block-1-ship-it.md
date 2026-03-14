@@ -149,29 +149,53 @@ All engineering work done. No open items.
 **Total: 21 bugs found and fixed across 5 sessions. 289 tests green throughout.**
 **Commits pushed: `725c85f` → `6313744`**
 
-**Still untested — Battery 5 (Opus-designed, Sonnet executes):**
-Battery 5 targets the highest-risk untested surfaces identified by code review.
-Bug encounter rate across Batteries 1-4 was 40-70% — too high to skip to Cursor.
+**Battery 5 COMPLETE (session 6 — March 14):**
 
-| # | Test | Target |
+| # | Test | Result |
 |---|---|---|
-| 1 | Column collision: multi-join SELECT | builder.py — dims not table-qualified |
-| 2 | Filter on non-joined entity | builder.py → join resolver gap |
-| 3 | Multi-metric query (SUM + COUNT + AVG) | builder.py — never tested >1 metric |
-| 4 | validate_sql with valid SQL | entire tool untested through MCP |
-| 5 | validate_sql with invalid SQL | error path verification |
-| 6 | query_database write rejection | security boundary |
-| 7 | ingest_definition lifecycle | add def → verify in get_schema |
-| 8 | ask_boyce with bad field_id | error handling / graceful degradation |
-| 9 | Multiple filters (3+ AND conditions) | WHERE clause composition |
-| 10 | Self-referential FK | join resolver edge case |
+| 1 | Column collision: multi-join SELECT | ✅ BUG 22 found + fixed |
+| 2 | Filter on non-joined entity | ✅ BUG 23 found + fixed |
+| 3 | Multi-metric (SUM + COUNT + AVG) | ✅ PASS |
+| 4 | validate_sql with valid SQL | ✅ PASS |
+| 5 | validate_sql with invalid SQL | ✅ PASS |
+| 6 | query_database write rejection | ✅ PASS |
+| 7 | ingest_definition lifecycle | ✅ PASS |
+| 8 | ask_boyce with bad field_id | ✅ PASS |
+| 9 | Multiple filters (4 AND conditions) | ✅ PASS |
+| 10 | 3-entity join GROUP BY qualification | ✅ PASS |
 
-**Decision gate after Battery 5:**
-- If ≤2 bugs found → move to Cursor cross-platform test
-- If ≥3 bugs found → run Battery 6 (5 more targeted tests)
+- [x] Bug 22: `_build_select_clause` emitted bare field names for dimensions — no table qualification, alias on collision. Fixed in builder.py (SELECT + GROUP BY + metrics).
+- [x] Bug 23: `_validate_structured_filter` did not check filter `entity_id` vs join scope — filter on non-joined entity produced invalid SQL. Fixed: validator now rejects out-of-scope filter entities with actionable error.
+
+**Total: 23 bugs found and fixed across 6 sessions. 289 tests green. Commit: `1113d22`**
+
+**Decision gate after Battery 5: 2 bugs found → Battery 6 required (gate was ≤1).**
+
+**Opus refactor (pre-Battery 6):**
+- [x] Extracted `_resolve_field_ref()` — single helper replacing 6 inline field resolution sites (116 lines)
+- [x] Extracted `_resolve_grouping_field()` — static helper for GROUP BY field mapping
+- [x] Refactored `_build_select_clause`, `_render_filter_def`, `_build_group_by_clause` through helpers
+- [x] Deleted dead code: `_build_from_clause` + `_build_join_clauses` (66 lines, never called)
+- [x] Proactive fix: concept_map.fields collision bug (same gap as Bug 22 in fields[] path)
+- [x] Net: -94 lines (164 added, 258 removed). Commit: `ec8bd15`
+
+**Battery 6 — 4 tests (Test 1 eliminated by proactive fix in refactor):**
+
+| # | Test | Result |
+|---|---|---|
+| 1 | IN operator with list value | ✅ PASS — `IN ('PG', 'PG-13', 'R')`, table-qualified, EXPLAIN verified |
+| 2 | Redshift dialect lint via validate_sql | ✅ PASS — compat_risks: CONCAT() flagged correctly |
+| 3 | NULL trap on equality filter | ✅ PASS — film.original_language_id 100% NULL (1000/1000), warning fired |
+| 4 | Mode C fallback (NL, no credentials) | ✅ BUG 24 found + fixed + re-test verified |
+
+- [x] Bug 24: Auth errors (litellm.AuthenticationError) hit generic Exception handler instead of Mode C fallback. Fix: check exception class name for Auth/Permission → route to `_build_schema_guidance()`. Commit: `fb37f6b`
+
+**Decision gate after Battery 6: 1 bug found → fixed → re-test passed → proceed to Cursor.**
+
+**Total: 24 bugs found and fixed across 7 sessions. 289 tests green. Commits: `ec8bd15` → `fb37f6b`**
 
 **Remaining for publish:**
-- [ ] Battery 5 (10 tests — above)
+- [x] Battery 6 (4 tests — complete)
 - [ ] Cursor cross-platform (must-have for publish gate)
 - [ ] VS Code cross-platform (stretch)
 - [ ] Version decision + publish
