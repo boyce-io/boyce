@@ -3,13 +3,19 @@ LookML Ingestion Parser
 
 Parses .lkml files and extracts SemanticSnapshot structures.
 Views → Entity, dimensions/measures → FieldDef, explore joins → JoinDef.
+
+Supports both single-file and directory ingestion:
+  - Single file: parse one .lkml file (views + explores in that file only)
+  - Directory: parse all .lkml files and merge into one snapshot
+    (handles the common pattern where views and model/explores live in
+    separate files)
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from boyce.types import (
     Entity,
@@ -22,20 +28,13 @@ from boyce.types import (
 from .base import build_snapshot as _build_snapshot
 
 
-def parse_lookml_file(file_path: Path) -> SemanticSnapshot:
+def _parse_lkml_content(
+    content: str, file_path: Path
+) -> Tuple[Dict[str, Entity], Dict[str, FieldDef], List[JoinDef]]:
     """
-    Parse a LookML .lkml file and return a SemanticSnapshot.
-
-    Args:
-        file_path: Path to a .lkml or .lookml file.
-
-    Returns:
-        SemanticSnapshot with entities (views), fields (dimensions/measures),
-        and joins (explore join blocks).
+    Parse LookML content and return (entities, fields, joins).
+    Called by both parse_lookml_file and parse_lookml_directory.
     """
-    with open(file_path, "r") as f:
-        content = f.read()
-
     entities: Dict[str, Entity] = {}
     fields: Dict[str, FieldDef] = {}
     joins: List[JoinDef] = []
@@ -152,6 +151,25 @@ def parse_lookml_file(file_path: Path) -> SemanticSnapshot:
                     description=f"LookML join: {base_view}.{src_field} -> {tgt_view}.{tgt_field}",
                 ))
 
+    return entities, fields, joins
+
+
+def parse_lookml_file(file_path: Path) -> SemanticSnapshot:
+    """
+    Parse a single LookML .lkml file and return a SemanticSnapshot.
+
+    Args:
+        file_path: Path to a .lkml or .lookml file.
+
+    Returns:
+        SemanticSnapshot with entities (views), fields (dimensions/measures),
+        and joins (explore join blocks).
+    """
+    with open(file_path, "r") as f:
+        content = f.read()
+
+    entities, fields, joins = _parse_lkml_content(content, file_path)
+
     return _build_snapshot(
         source_system="lookml",
         source_version="1.0",
@@ -162,11 +180,56 @@ def parse_lookml_file(file_path: Path) -> SemanticSnapshot:
     )
 
 
+def parse_lookml_directory(dir_path: Path) -> SemanticSnapshot:
+    """
+    Parse all .lkml files in a directory and merge into a single SemanticSnapshot.
+
+    This handles LookML projects where view definitions and model/explore definitions
+    live in separate files. All entities, fields, and joins are merged across files,
+    so a model file's explore joins are linked to the views defined in view files.
+
+    Args:
+        dir_path: Path to a directory containing .lkml or .lookml files.
+    """
+    lkml_files = sorted(dir_path.glob("*.lkml"))
+    if not lkml_files:
+        lkml_files = sorted(dir_path.glob("*.lookml"))
+    if not lkml_files:
+        raise ValueError(f"No .lkml files found in {dir_path}")
+
+    all_entities: Dict[str, Entity] = {}
+    all_fields: Dict[str, FieldDef] = {}
+    all_joins: List[JoinDef] = []
+
+    for lkml_file in lkml_files:
+        with open(lkml_file, "r") as f:
+            content = f.read()
+        e, f_, j = _parse_lkml_content(content, lkml_file)
+        all_entities.update(e)
+        all_fields.update(f_)
+        all_joins.extend(j)
+
+    return _build_snapshot(
+        source_system="lookml",
+        source_version="1.0",
+        entities=all_entities,
+        fields=all_fields,
+        joins=all_joins,
+        metadata={"lookml_dir": str(dir_path), "file_count": len(lkml_files)},
+    )
+
+
 class LookMLParser:
-    """SnapshotParser implementation for LookML files."""
+    """SnapshotParser implementation for LookML files and directories."""
 
     def detect(self, path: Path) -> float:
         path = Path(path)
+        # Directory containing .lkml files
+        if path.is_dir():
+            if any(path.glob("*.lkml")) or any(path.glob("*.lookml")):
+                return 0.85
+            return 0.0
+        # Single .lkml / .lookml file
         if path.suffix in (".lkml", ".lookml"):
             return 0.95
         if path.suffix == ".txt" or path.suffix == "":
@@ -180,7 +243,10 @@ class LookMLParser:
         return 0.0
 
     def parse(self, path: Path) -> SemanticSnapshot:
-        return parse_lookml_file(Path(path))
+        path = Path(path)
+        if path.is_dir():
+            return parse_lookml_directory(path)
+        return parse_lookml_file(path)
 
     def source_type(self) -> str:
         return "lookml"
