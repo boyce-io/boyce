@@ -97,6 +97,14 @@ produce deterministic SQL with no LLM call on Boyce's side.
 ### Aggregation Types
 `SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`
 
+### grain_context keys
+- `aggregation_required` — true when metrics are present (triggers GROUP BY)
+- `grouping_fields` — list of field_ids to group by
+- `date_trunc_field` — field_id of a date/timestamp dimension to truncate (optional)
+- `date_trunc_unit` — truncation granularity: `"day"`, `"week"`, `"month"`, `"quarter"`, `"year"` (required if date_trunc_field is set)
+
+When the user asks for time-series aggregation ("monthly counts", "weekly revenue", "by year"), set `date_trunc_field` and `date_trunc_unit` in `grain_context`. Boyce will render `DATE_TRUNC('month', "field")` in both SELECT and GROUP BY.
+
 ### Rules
 1. Every `entity_id` and `field_id` must exist in the snapshot returned by `get_schema`.
 2. `metrics` require `grain_context.aggregation_required = true`.
@@ -171,6 +179,35 @@ User question: "Revenue by customer name"
   "dialect": "redshift"
 }
 ```
+
+**Example 4: Time-series aggregation (monthly counts)**
+User question: "Monthly order counts for 1997"
+```json
+{
+  "concept_map": {
+    "entities": [{"entity_id": "entity:orders", "entity_name": "orders"}],
+    "fields": [],
+    "metrics": [{"metric_name": "order_count", "field_id": "field:orders:order_id",
+                  "aggregation_type": "COUNT"}],
+    "dimensions": [{"field_id": "field:orders:order_date", "field_name": "order_date",
+                     "entity_id": "entity:orders"}],
+    "filters": []
+  },
+  "join_path": ["entity:orders"],
+  "grain_context": {
+    "aggregation_required": true,
+    "grouping_fields": ["field:orders:order_date"],
+    "date_trunc_field": "field:orders:order_date",
+    "date_trunc_unit": "month"
+  },
+  "policy_context": {"resolved_predicates": []},
+  "temporal_filters": [{"field_id": "field:orders:order_date",
+                          "operator": "between",
+                          "value": {"start": "1997-01-01", "end": "1997-12-31"}}],
+  "dialect": "postgres"
+}
+```
+Boyce renders: `SELECT DATE_TRUNC('month', "order_date") AS "order_date_month", COUNT("order_id") AS "order_count" FROM "orders" WHERE "order_date" BETWEEN '1997-01-01' AND '1997-12-31' GROUP BY DATE_TRUNC('month', "order_date")`
 """
 
 

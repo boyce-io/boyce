@@ -23,6 +23,7 @@ from boyce.types import (
     FilterOperator,
     SemanticSnapshot,
     TemporalFilter,
+    TemporalOperator,
 )
 
 
@@ -115,8 +116,11 @@ class SQLBuilder:
             snapshot, concept_map, planner_output.get("join_path", [])
         )
 
-        # Build WHERE clause (structured filters + policy predicates)
-        where_clause = self._build_where_clause(concept_map, policy_context, snapshot)
+        # Build WHERE clause (structured filters + policy predicates + temporal filters)
+        where_clause = self._build_where_clause(
+            concept_map, policy_context, snapshot,
+            temporal_filters=planner_output.get("temporal_filters", []),
+        )
 
         # Build GROUP BY clause (with DATE_TRUNC support)
         group_by_clause = self._build_group_by_clause(grain_context, snapshot)
@@ -369,17 +373,35 @@ class SQLBuilder:
         self,
         concept_map: Dict[str, Any],
         policy_context: Dict[str, Any],
-        snapshot: Optional[SemanticSnapshot] = None
+        snapshot: Optional[SemanticSnapshot] = None,
+        temporal_filters: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """
-        Build WHERE clause from structured filters and policy predicates.
+        Build WHERE clause from structured filters, temporal filters, and policy predicates.
 
         Args:
             concept_map: Concept map with filters
             policy_context: Policy context with resolved predicates
             snapshot: Optional SemanticSnapshot for fully qualified field names
+            temporal_filters: Top-level temporal_filters from StructuredFilter
         """
         where_predicates: List[str] = []
+
+        # Process top-level temporal_filters (e.g. between/trailing_interval on date fields)
+        for tf in (temporal_filters or []):
+            if not isinstance(tf, dict):
+                continue
+            op = tf.get("operator")
+            val = tf.get("value")
+            if not op or val is None:
+                continue
+            temporal_filter = TemporalFilter(
+                field_id=tf.get("field_id", ""),
+                operator=TemporalOperator(op),
+                value=val,
+            )
+            sql_expr = self.dialect.render_temporal_filter(temporal_filter)
+            where_predicates.append(sql_expr)
 
         # Process structured filters from concept_map
         filters = concept_map.get("filters", [])
@@ -390,10 +412,13 @@ class SQLBuilder:
 
                 # Handle temporal filters
                 if operator in ["trailing_interval", "leading_interval", "between", "on_or_after", "on_or_before", "equals"]:
+                    val = filter_item.get("value")
+                    if val is None:
+                        continue
                     temporal_filter = TemporalFilter(
                         field_id=filter_item.get("field_id", ""),
-                        operator=filter_item.get("operator"),
-                        value=filter_item.get("value")
+                        operator=TemporalOperator(operator),
+                        value=val,
                     )
                     sql_expr = self.dialect.render_temporal_filter(temporal_filter)
                     where_predicates.append(sql_expr)
