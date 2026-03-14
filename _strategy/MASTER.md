@@ -492,7 +492,13 @@ The `extension/` scaffold is preserved but not actively developed. VS Code exten
 when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension.md`.
 
 ### Recent completions
-- **2026-03-13:** Architectural overhaul (CEO/Opus directive, 10 changes):
+- **2026-03-13 (PM):** MCP integration testing with Claude Code as host LLM:
+  - 6 bugs found and fixed: boyce-init config path, ingest_source description, snapshot hash
+    recomputation, builder COUNT field resolution, builder GROUP BY field resolution, ORDER BY/LIMIT guidance.
+  - 3 queries tested successfully (Mode A): supplier product counts, top-5 expensive products,
+    cross-entity WHERE filters. All producing correct SQL after fixes.
+  - Test environment: `~/boyce-test/` with Northwind DDL, CLAUDE.md guardrails for test CC.
+- **2026-03-13 (AM):** Architectural overhaul (CEO/Opus directive, 10 changes):
   - ask_boyce tri-modal (Mode A/B/C), validate_sql new tool, build_sql/solve_path internalized (7-tool surface),
   - StructuredFilter docs updated with examples, intent classifier removed, boyce-init expands to 6 platforms,
   - Schema freshness Tier 2 (mtime check + auto re-ingest) + Tier 3 (live DB drift detection),

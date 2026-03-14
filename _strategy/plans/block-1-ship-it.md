@@ -52,36 +52,39 @@ All engineering work done. No open items.
   - Category B: real-world prompts by persona (junior analyst, staff engineer, non-technical stakeholder)
 - [x] Testing runbook written (`boyce/tests/validation/testing_runbook.md`): what to do, in what order, what to record, how to log failures
 
-### Wed March 11 — Will (full day, morning start)
+### Fri March 13 — MCP Integration Testing (Will + Claude Code)
 
-**Morning — Integration:**
-- [ ] Run `boyce-init` — does it detect Claude Desktop / Cursor / Claude Code correctly?
-- [ ] Verify MCP connection comes up in each host
-- [ ] `get_schema` returns Pagila tables
-- [ ] One plain-English question per host → SQL back
-- [ ] Record: what broke, what was confusing, what would cause a new user to quit
+**Architectural overhaul completed** (10 changes from CEO/Opus directive) before testing began.
 
-**Afternoon — Query Battery (on working surfaces):**
-- [ ] Run full Category A battery
-- [ ] Run Category B battery (messy, conversational prompts)
-- [ ] Claude Code fixes failures in real time; Will retests
+**Bugs found and fixed during testing:**
+- [x] `boyce-init` wrote `.claude/settings.json` — should be `.mcp.json` for Claude Code
+- [x] `ingest_source` description only listed 3 formats — host LLM couldn't find the tool for DDL files
+- [x] Snapshot hash mismatch — source_path injection broke hash determinism (recompute after mutation)
+- [x] `COUNT("metric_name")` — builder used alias instead of resolving field_id to column name
+- [x] `GROUP BY "field:Table:Col"` — builder leaked raw field_id instead of column name
+- [x] ORDER BY/LIMIT gap — added guidance in ask_boyce docstring (host LLM appends these)
 
-### Thu March 12 — Will (full day, morning start)
+**Queries tested (Mode A — StructuredFilter via Claude Code as host LLM):**
+- [x] "How many products does each supplier provide?" — correct SQL (after builder fixes)
+- [x] "Top 5 most expensive products and their categories" — correct SQL (ORDER BY/LIMIT noted as gap)
+- [x] "Employees in London who processed orders shipped to France" — correct cross-entity WHERE + JOIN
 
-**Morning:**
-- [ ] Retest all failures fixed overnight
-- [ ] Run any Category B queries not completed Wednesday
-- [ ] Confirm NULL trap fires on the demo scenario (`demo/magic_moment/`)
+**Still untested:**
+- [ ] Multi-hop joins (3+ tables)
+- [ ] Temporal filters (trailing_interval, date ranges)
+- [ ] NULL trap detection (LEFT JOIN + WHERE silently becoming INNER JOIN — gap noted)
+- [ ] `validate_sql` tool
+- [ ] dbt and LookML parsers (only DDL tested so far)
+- [ ] Live DB execution (Pagila Docker + `query_database`)
+- [ ] `pip install boyce` in a clean venv
 
-**Afternoon — Decision:**
-- [ ] Version decision: v1.0 (interface is stable, product works) or iterate (planner has gaps)
-- [ ] If go: `cd boyce && python -m build && uv publish` (Will executes — PyPI credentials required)
+### Remaining — Version Decision + Publish
+
+- [ ] Finish compiler testing (multi-hop, temporal, validate_sql, dbt/LookML parsers)
+- [ ] Confirm NULL trap fires on demo scenario (`demo/magic_moment/`)
+- [ ] Version decision: v0.1.0 (ship, iterate) or iterate further
+- [ ] If go: `cd boyce && python -m build && uv publish` (Will executes)
 - [ ] Verify: `pip install boyce` in a clean venv, `boyce` CLI starts, imports work
-
-### Fri March 13 — Will (flex)
-- [ ] Close gaps from Wed-Thu that need retesting
-- [ ] Begin Phase C if published Thursday
-- [ ] Open items from Wednesday/Thursday that couldn't be addressed live
 
 ---
 
