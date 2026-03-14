@@ -205,6 +205,31 @@ def _parse_fk_target(raw: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Column name extraction — handles bracket-quoted multi-word T-SQL identifiers
+# ---------------------------------------------------------------------------
+
+_BRACKET_COL_RE = re.compile(r'^\[([^\]]+)\]\s*')
+
+
+def _extract_col_name_and_rest(elem: str) -> Tuple[str, str]:
+    """
+    Extract (col_name, remainder) from a column definition element.
+
+    Handles standard identifiers and T-SQL bracket-quoted multi-word names:
+      - "[Customer Key]  INT NOT NULL" → ("Customer Key", "INT NOT NULL")
+      - "customer_id     INTEGER ..."  → ("customer_id",  "INTEGER ...")
+    """
+    elem = elem.strip()
+    m = _BRACKET_COL_RE.match(elem)
+    if m:
+        return (m.group(1).strip(), elem[m.end():])
+    parts = elem.split(None, 1)
+    if not parts:
+        return ("", "")
+    return (_clean_col_name(parts[0]), parts[1] if len(parts) > 1 else "")
+
+
+# ---------------------------------------------------------------------------
 # Main parse function
 # ---------------------------------------------------------------------------
 
@@ -302,18 +327,15 @@ def _parse_ddl_sql(raw_sql: str, source_label: str, extra_metadata: Optional[dic
             if re.match(r"(?:CONSTRAINT|UNIQUE|CHECK|INDEX)\b", eu):
                 continue
 
-            # Column definition
-            # Split off leading column name and type
-            parts = elem.strip().split()
-            if not parts:
-                continue
-            col_name = _clean_col_name(parts[0])
+            # Column definition — handle bracket-quoted multi-word T-SQL names
+            col_name, col_rest = _extract_col_name_and_rest(elem)
             if not col_name:
                 continue
 
             # Check SERIAL / BIGSERIAL
-            if len(parts) >= 2:
-                type_raw = parts[1].strip('"').upper()
+            type_parts_first = col_rest.split(None, 1)
+            if type_parts_first:
+                type_raw = type_parts_first[0].strip('"').upper()
                 if type_raw in ("SERIAL", "BIGSERIAL"):
                     serial_cols.add(col_name)
 
@@ -341,7 +363,7 @@ def _parse_ddl_sql(raw_sql: str, source_label: str, extra_metadata: Optional[dic
         elif len(pk_cols) > 1:
             # Preserve declaration order
             grain = "_".join(
-                col for col in [_clean_col_name(p.split()[0]) for p in elements
+                col for col in [_extract_col_name_and_rest(p)[0] for p in elements
                                  if p.strip() and not re.match(
                                      r"(?:CONSTRAINT|PRIMARY|FOREIGN|UNIQUE|CHECK|INDEX)\b",
                                      p.strip().upper()
@@ -359,25 +381,22 @@ def _parse_ddl_sql(raw_sql: str, source_label: str, extra_metadata: Optional[dic
             if re.match(r"(?:CONSTRAINT|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|INDEX)\b", eu):
                 continue
 
-            parts = elem.strip().split()
-            if len(parts) < 2:
-                continue
-
-            col_name = _clean_col_name(parts[0])
+            col_name, col_rest = _extract_col_name_and_rest(elem)
             if not col_name:
                 continue
 
             # Extract data type — may span multiple tokens until modifier keyword
             type_tokens: List[str] = []
-            idx = 1
-            while idx < len(parts):
-                tok = parts[idx].strip('"').upper()
+            rest_parts = col_rest.split()
+            idx = 0
+            while idx < len(rest_parts):
+                tok = rest_parts[idx].strip('"').upper()
                 if tok in ("NOT", "NULL", "DEFAULT", "PRIMARY", "REFERENCES",
                            "UNIQUE", "CHECK", "CONSTRAINT", "IDENTITY",
                            "AUTOINCREMENT", "AUTO_INCREMENT", "COLLATE",
                            "GENERATED", "ALWAYS", "AS", "ON"):
                     break
-                type_tokens.append(parts[idx])
+                type_tokens.append(rest_parts[idx])
                 idx += 1
 
             raw_type = " ".join(type_tokens)
@@ -388,7 +407,7 @@ def _parse_ddl_sql(raw_sql: str, source_label: str, extra_metadata: Optional[dic
 
             # Nullable — default True (SQL default); NOT NULL makes it False
             nullable = True
-            remainder = " ".join(parts[idx:]).upper()
+            remainder = " ".join(rest_parts[idx:]).upper()
             if "NOT NULL" in remainder:
                 nullable = False
 
