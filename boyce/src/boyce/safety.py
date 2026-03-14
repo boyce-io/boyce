@@ -125,6 +125,10 @@ def lint_redshift_compat(sql: str) -> List[str]:
         - LATERAL joins
         - JSONB types / operators (jsonb, ->>, #>> etc.)
         - REGEXP_COUNT function
+        - CONCAT() — use || instead
+        - STRING_AGG() — not supported; use LISTAGG()
+        - FILTER clause on aggregates — not supported
+        - WITH RECURSIVE CTEs — not supported
         - Lookahead/lookbehind constructs in regex ( '(?=' , '(?<=' , '(?!' , '(?<!' )
     """
     problems: List[str] = []
@@ -143,6 +147,22 @@ def lint_redshift_compat(sql: str) -> List[str]:
     # 3) REGEXP_COUNT
     if "REGEXP_COUNT" in sql_upper:
         problems.append("Redshift 1.0 does not support REGEXP_COUNT.")
+
+    # 4) CONCAT() — Redshift requires || for string concatenation
+    if re.search(r"\bCONCAT\s*\(", sql_upper):
+        problems.append("Redshift 1.0: use || for string concatenation instead of CONCAT().")
+
+    # 5) STRING_AGG() — use LISTAGG() in Redshift
+    if re.search(r"\bSTRING_AGG\s*\(", sql_upper):
+        problems.append("Redshift 1.0 does not support STRING_AGG(); use LISTAGG() instead.")
+
+    # 6) FILTER clause on aggregates (e.g. COUNT(*) FILTER (WHERE ...))
+    if re.search(r"\bFILTER\s*\(\s*WHERE\b", sql_upper):
+        problems.append("Redshift 1.0 does not support FILTER (WHERE ...) on aggregates.")
+
+    # 7) RECURSIVE CTEs
+    if re.search(r"\bWITH\s+RECURSIVE\b", sql_upper):
+        problems.append("Redshift 1.0 does not support RECURSIVE CTEs.")
 
     # 4) Lookahead / lookbehind in regex patterns (scan string literals only)
     parsed = sqlparse.parse(sql)
