@@ -141,14 +141,15 @@ def _parse_lkml_content(
             )
             if sql_on_m:
                 src_view, src_field, tgt_view, tgt_field = sql_on_m.groups()
+                # Use src_view from sql_on (may differ from base_view in multi-hop joins)
                 joins.append(JoinDef(
-                    id=f"join:{base_view}:{tgt_view}",
-                    source_entity_id=f"entity:{base_view}",
+                    id=f"join:{src_view}:{tgt_view}",
+                    source_entity_id=f"entity:{src_view}",
                     target_entity_id=f"entity:{tgt_view}",
                     join_type=join_type,
-                    source_field_id=f"field:{base_view}:{src_field}",
+                    source_field_id=f"field:{src_view}:{src_field}",
                     target_field_id=f"field:{tgt_view}:{tgt_field}",
-                    description=f"LookML join: {base_view}.{src_field} -> {tgt_view}.{tgt_field}",
+                    description=f"LookML join: {src_view}.{src_field} -> {tgt_view}.{tgt_field}",
                 ))
 
     return entities, fields, joins

@@ -871,6 +871,16 @@ def ingest_source(
                 "error": {"code": -32602, "message": f"Failed to parse source: {e}"}
             })
 
+        errors = validate_snapshot(snapshot.model_dump())
+        if errors:
+            return json.dumps({
+                "error": {
+                    "code": -32602,
+                    "message": f"Parsed snapshot failed validation: {errors}",
+                    "data": errors,
+                }
+            })
+
         try:
             _store.save(snapshot, snapshot_name)
         except Exception as e:
