@@ -149,9 +149,32 @@ All engineering work done. No open items.
 **Total: 21 bugs found and fixed across 5 sessions. 289 tests green throughout.**
 **Commits pushed: `725c85f` → `6313744`**
 
-**Still untested:**
+**Still untested — Battery 5 (Opus-designed, Sonnet executes):**
+Battery 5 targets the highest-risk untested surfaces identified by code review.
+Bug encounter rate across Batteries 1-4 was 40-70% — too high to skip to Cursor.
+
+| # | Test | Target |
+|---|---|---|
+| 1 | Column collision: multi-join SELECT | builder.py — dims not table-qualified |
+| 2 | Filter on non-joined entity | builder.py → join resolver gap |
+| 3 | Multi-metric query (SUM + COUNT + AVG) | builder.py — never tested >1 metric |
+| 4 | validate_sql with valid SQL | entire tool untested through MCP |
+| 5 | validate_sql with invalid SQL | error path verification |
+| 6 | query_database write rejection | security boundary |
+| 7 | ingest_definition lifecycle | add def → verify in get_schema |
+| 8 | ask_boyce with bad field_id | error handling / graceful degradation |
+| 9 | Multiple filters (3+ AND conditions) | WHERE clause composition |
+| 10 | Self-referential FK | join resolver edge case |
+
+**Decision gate after Battery 5:**
+- If ≤2 bugs found → move to Cursor cross-platform test
+- If ≥3 bugs found → run Battery 6 (5 more targeted tests)
+
+**Remaining for publish:**
+- [ ] Battery 5 (10 tests — above)
 - [ ] Cursor cross-platform (must-have for publish gate)
 - [ ] VS Code cross-platform (stretch)
+- [ ] Version decision + publish
 
 ### Tonight (March 13 late) — Close Remaining Gates
 
