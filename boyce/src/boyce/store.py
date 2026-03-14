@@ -158,6 +158,13 @@ class DefinitionStore:
             lines.append(line)
         return "\n".join(lines)
 
+    def clear(self, snapshot_name: str) -> None:
+        """Delete all definitions for snapshot_name (e.g., on snapshot overwrite)."""
+        path = self._path(snapshot_name)
+        if path.exists():
+            path.unlink()
+            logger.info("Cleared definitions for snapshot '%s'", snapshot_name)
+
     def _load_raw(self, snapshot_name: str) -> Dict[str, dict]:
         path = self._path(snapshot_name)
         if not path.exists():

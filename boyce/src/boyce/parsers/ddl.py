@@ -220,24 +220,18 @@ def _strip_sql_comments(text: str) -> str:
     return text
 
 
-def parse_ddl_file(file_path: Path) -> SemanticSnapshot:
+def _parse_ddl_sql(raw_sql: str, source_label: str, extra_metadata: Optional[dict] = None) -> SemanticSnapshot:
     """
-    Parse CREATE TABLE statements from a SQL DDL file and return a SemanticSnapshot.
-
-    Supports Postgres, T-SQL (SQL Server), and generic ANSI SQL.
-    Handles: SERIAL/BIGSERIAL PKs, inline REFERENCES FKs, constraint-style PKs and FKs,
-    composite PKs, NOT NULL, DEFAULT, quoted identifiers, T-SQL GO batch separators.
+    Core DDL parser: given raw SQL text, return a SemanticSnapshot.
 
     Args:
-        file_path: Path to a .sql file containing CREATE TABLE statements.
+        raw_sql: SQL DDL text (may span multiple files, already concatenated).
+        source_label: Human-readable source identifier for metadata.
+        extra_metadata: Additional metadata keys to merge into the snapshot.
 
     Returns:
         SemanticSnapshot with entities (tables), fields (columns), and joins (FKs).
     """
-    file_path = Path(file_path)
-    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-        raw_sql = f.read()
-
     # Strip T-SQL GO batch separators
     raw_sql = re.sub(r"\nGO\b", "\n;", raw_sql, flags=re.IGNORECASE)
 
@@ -457,17 +451,68 @@ def parse_ddl_file(file_path: Path) -> SemanticSnapshot:
                 description=f"FK: {table_name}.{src_col} -> {tgt_table}.{tgt_col}",
             ))
 
+    meta: Dict[str, object] = {
+        "source_file": source_label,
+        "dialect": "auto",
+        "table_count": len(entities),
+    }
+    if extra_metadata:
+        meta.update(extra_metadata)
+
     return build_snapshot(
         source_system="ddl",
         source_version="1.0",
         entities=entities,
         fields=fields,
         joins=joins,
-        metadata={
-            "source_file": str(file_path),
-            "dialect": "auto",
-            "table_count": len(entities),
-        },
+        metadata=meta,
+    )
+
+
+def parse_ddl_file(file_path: Path) -> SemanticSnapshot:
+    """
+    Parse CREATE TABLE statements from a SQL DDL file and return a SemanticSnapshot.
+
+    Supports Postgres, T-SQL (SQL Server), and generic ANSI SQL.
+    Handles: SERIAL/BIGSERIAL PKs, inline REFERENCES FKs, constraint-style PKs and FKs,
+    composite PKs, NOT NULL, DEFAULT, quoted identifiers, T-SQL GO batch separators.
+
+    Args:
+        file_path: Path to a .sql file containing CREATE TABLE statements.
+
+    Returns:
+        SemanticSnapshot with entities (tables), fields (columns), and joins (FKs).
+    """
+    file_path = Path(file_path)
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        raw_sql = f.read()
+    return _parse_ddl_sql(raw_sql, str(file_path))
+
+
+def parse_ddl_directory(dir_path: Path) -> SemanticSnapshot:
+    """
+    Parse CREATE TABLE statements from all .sql files in a directory (recursive).
+
+    Files are sorted lexicographically for deterministic output. Useful for
+    multi-file DDL projects (e.g., Wide World Importers, split by schema/domain).
+
+    Args:
+        dir_path: Directory containing one or more .sql files.
+
+    Returns:
+        SemanticSnapshot with all entities, fields, and joins found across files.
+    """
+    dir_path = Path(dir_path)
+    sql_files = sorted(dir_path.rglob("*.sql"))
+    if not sql_files:
+        raise ValueError(f"No .sql files found in directory: {dir_path}")
+    combined = "\n\n".join(
+        f.read_text(encoding="utf-8", errors="replace") for f in sql_files
+    )
+    return _parse_ddl_sql(
+        combined,
+        source_label=str(dir_path),
+        extra_metadata={"source_type": "ddl_directory", "file_count": len(sql_files)},
     )
 
 
@@ -476,6 +521,9 @@ class DDLParser:
 
     def detect(self, path: Path) -> float:
         path = Path(path)
+        if path.is_dir():
+            sql_files = list(path.rglob("*.sql"))
+            return 0.80 if sql_files else 0.0
         if path.suffix == ".sql":
             try:
                 with open(path) as f:
@@ -488,7 +536,10 @@ class DDLParser:
         return 0.0
 
     def parse(self, path: Path) -> SemanticSnapshot:
-        return parse_ddl_file(Path(path))
+        path = Path(path)
+        if path.is_dir():
+            return parse_ddl_directory(path)
+        return parse_ddl_file(path)
 
     def source_type(self) -> str:
         return "ddl"

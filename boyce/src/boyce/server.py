@@ -1045,6 +1045,9 @@ async def ingest_source(
                 "error": {"code": -32603, "message": f"Failed to save snapshot: {e}"}
             })
 
+        # Clear stale definitions from the previous occupant of this snapshot slot.
+        _definitions.clear(snapshot_name)
+
         if snapshot.snapshot_id not in _graph.snapshots:
             _graph.add_snapshot(snapshot)
 
@@ -1083,11 +1086,13 @@ async def ingest_source(
         })
 
     try:
-        out_path = _store.save(snapshot, snapshot_name)
+        _store.save(snapshot, snapshot_name)
     except Exception as e:
         return json.dumps({
             "error": {"code": -32603, "message": f"Failed to save snapshot: {e}"}
         })
+
+    _definitions.clear(snapshot_name)
 
     if snapshot.snapshot_id not in _graph.snapshots:
         _graph.add_snapshot(snapshot)
