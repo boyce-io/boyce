@@ -69,24 +69,59 @@ All engineering work done. No open items.
 - [x] "Top 5 most expensive products and their categories" — correct SQL (ORDER BY/LIMIT noted as gap)
 - [x] "Employees in London who processed orders shipped to France" — correct cross-entity WHERE + JOIN
 
+**Additional bugs found and fixed (session 2 — March 13 evening):**
+- [x] `temporal_filters` at StructuredFilter top level dropped — never passed to WHERE builder (commits `9ee8008`)
+- [x] `ask_boyce` docstring missing `date_trunc_field`/`date_trunc_unit` guidance — host LLM didn't know about it
+- [x] LookML parser: directory ingest failed — `detect()` only matched files, not directories
+- [x] LookML parser: model file produced 0 entities — `include` directives not followed; fix: parse all `.lkml` files in dir and merge
+- [x] LookML join builder: used explore base_view instead of sql_on src_view for source_entity/field → validation failure
+- [x] `ingest_source` (source_path path) didn't validate snapshot before saving — silent invalid snapshots possible
+
+**All compiler tests passing (session 2):**
+- [x] Multi-hop joins (3+ tables) — order_items → inventory_items → products ✅
+- [x] Temporal filters (DATE_TRUNC + between filter for 1997) ✅
+- [x] `validate_sql` tool (unchecked without DB = correct) ✅
+- [x] dbt parser — jaffle_shop ingested, LTV SQL correct ✅
+- [x] LookML parser — thelook_lookml directory ingested (5e/53f/6j), revenue by brand SQL correct ✅
+- [x] NULL trap demo (`demo/magic_moment/verify_demo.py`) — both dangers fire, all assertions pass ✅
+
+**Additional bugs found and fixed (session 3 — March 13 late evening):**
+- [x] `safety.py` missing 4 Redshift lint rules: CONCAT, STRING_AGG, FILTER(WHERE), RECURSIVE CTE
+- [x] `concept_map.fields` ignored in SELECT — builder fell back to `SELECT *` for raw queries (no dimensions/metrics); fix: use fields for projection
+- [x] Filter operator aliases rejected — `NOT_IN`, `IS_NULL`, `IS_NOT_NULL` etc. normalized to SQL spacing at both validator and builder
+- [x] Django parser FK target resolution used class_name.lower() — diverged from db_table override (e.g. "Customer" → "customer" vs entity registered as "customers")
+
+**All compiler tests passing (session 3 — 6 consecutive passes, no new failures):**
+- [x] LIKE filter — correct SQL, `concept_map.fields` projection fix verified ✅
+- [x] NOT_IN alias (`NOT_IN` → `NOT IN`) + fields projection — `SELECT "EmployeeID", "LastName", "FirstName", "City"` correct ✅
+- [x] policy_context.resolved_predicates injection — verbatim, correct ordering, composable with empty filters ✅
+- [x] validate_sql CONCAT lint detection — compat_risks populated correctly ✅
+- [x] Django models parser — 5e/31f/5j, all FK joins resolved to correct db_table targets ✅
+- [x] Northwind DDL (13e/88f/8j) — 8 core tables clean; 5 dbo-schema tables degrade silently (T-SQL bracket notation — noted, not blocking) ✅
+
+**Total: 13 bugs found and fixed across 3 sessions. 289 tests green throughout.**
+
 **Still untested:**
-- [ ] Multi-hop joins (3+ tables)
-- [ ] Temporal filters (trailing_interval, date ranges)
-- [ ] NULL trap detection (LEFT JOIN + WHERE silently becoming INNER JOIN — gap noted)
-- [ ] `validate_sql` tool
-- [ ] dbt and LookML parsers (only DDL tested so far)
-- [ ] Live DB execution (Pagila Docker + `query_database`)
+- [ ] Live DB execution (Pagila Docker + `query_database` + `profile_data` with real results)
 - [ ] `pip install boyce` in a clean venv
+- [ ] Cursor cross-platform (must-have for publish gate)
+- [ ] VS Code cross-platform (stretch)
 
-### Remaining — Cross-Platform + Version Decision + Publish
+### Tonight (March 13 late) — Close Remaining Gates
 
-- [ ] Finish compiler testing on Claude Code (multi-hop, temporal, validate_sql, dbt/LookML parsers)
-- [ ] Test on **Cursor** (must-have): boyce-init → MCP connection → 2+ queries
+- [x] Finish compiler testing on Claude Code — 20 tests, 6 consecutive passes, all green
+- [x] Confirm NULL trap fires on demo scenario (`demo/magic_moment/`) — both dangers fire, all assertions pass
+- [ ] `pip install boyce` in clean venv — hard gate, must pass tonight
+- [ ] Live DB round-trip (Pagila Docker + `query_database` + `profile_data` via MCP) — hard gate
+- [ ] Commit + push all session 1-3 fixes (13 bug fixes)
+
+### Tomorrow (March 14) — Cursor + Version Decision + Publish
+
+- [ ] Test on **Cursor** (must-have): boyce-init → MCP connection → 2+ queries — hard gate for publish
 - [ ] Test on **VS Code** (stretch): boyce-init → MCP connection → 1+ query (uses `"servers"` key)
-- [ ] Confirm NULL trap fires on demo scenario (`demo/magic_moment/`)
-- [ ] Version decision: v0.1.0 (ship, iterate) or iterate further
-- [ ] If go: `cd boyce && python -m build && uv publish` (Will executes)
-- [ ] Verify: `pip install boyce` in a clean venv, `boyce` CLI starts, imports work
+- [ ] Version decision: v0.1.0 (ship, iterate) or iterate further — after Cursor passes
+- [ ] If go: version bump in `pyproject.toml`, `cd boyce && python -m build && uv publish` (Will executes)
+- [ ] Verify: `pip install boyce` from PyPI in a fresh venv, `boyce` CLI starts, imports work
 
 ---
 
@@ -122,10 +157,10 @@ Starts after Phase C content and directories are done.
 
 ## Acceptance Criteria
 - [x] Phase A: all engineering complete, 289 tests green (post-architecture-revision)
-- [ ] Phase B: Will has personally tested all MCP hosts and at least 2 non-MCP surfaces
-- [ ] Phase B: query battery run — results recorded, failures resolved
-- [ ] Phase B: version decision made by Will on Thursday March 12
-- [ ] Phase B: `pip install boyce` works in a clean environment post-publish
+- [ ] Phase B: Will has personally tested Claude Code + Cursor (must-have), VS Code (stretch)
+- [x] Phase B: query battery run — 20 tests recorded, 13 bugs resolved, 6 consecutive clean passes
+- [ ] Phase B: version decision — after Cursor test passes (target: March 14)
+- [ ] Phase B: `pip install boyce` works in a clean environment (pre-publish: tonight; post-publish: after PyPI upload)
 - [ ] Phase C: Null Trap essay published to at least 3 channels
 - [ ] Phase C: listed on at least 2 MCP directories
 - [ ] Phase C: all integration guides live as public docs

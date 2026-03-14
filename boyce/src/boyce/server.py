@@ -264,6 +264,7 @@ def _validate_structured_filter(
         if fid and fid not in snapshot.fields:
             errors.append(f"filter field_id '{fid}' not found in snapshot")
         op = filt.get("operator", "") if isinstance(filt, dict) else ""
+        op = _OPERATOR_ALIASES.get(op, op)  # normalise alias variants
         if op and op not in valid_ops:
             errors.append(f"invalid filter operator '{op}'; expected one of {sorted(valid_ops)}")
 
@@ -307,6 +308,21 @@ _store = SnapshotStore(_LOCAL_CONTEXT)
 _definitions = DefinitionStore(_LOCAL_CONTEXT)
 _audit = AuditLog(_LOCAL_CONTEXT)
 _graph = SemanticGraph()
+
+# Operator aliases — host LLMs often use underscore variants (NOT_IN, IS_NULL).
+# Normalise before validation and before the builder's FilterOperator() call.
+_OPERATOR_ALIASES: Dict[str, str] = {
+    "NOT_IN": "NOT IN",
+    "IS_NULL": "IS NULL",
+    "IS_NOT_NULL": "IS NOT NULL",
+    "ISNULL": "IS NULL",
+    "ISNOTNULL": "IS NOT NULL",
+    "NOT_EQUALS": "!=",
+    "GREATER_THAN": ">",
+    "GREATER_THAN_OR_EQUAL": ">=",
+    "LESS_THAN": "<",
+    "LESS_THAN_OR_EQUAL": "<=",
+}
 
 # Lazily initialised once the first query_database call arrives.
 _adapter: "DatabaseAdapter | None" = None
@@ -827,30 +843,143 @@ async def _check_db_drift(snapshot_name: str) -> Optional[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Live-DB schema ingestion helper
+# ---------------------------------------------------------------------------
+
+
+def _build_snapshot_from_live_db(
+    schema_summary: list,
+    fk_rows: list,
+    db_url: str,
+) -> "SemanticSnapshot":
+    """
+    Convert PostgresAdapter.get_schema_summary() + get_foreign_keys() output
+    into a SemanticSnapshot.
+
+    FK columns are classified as FOREIGN_KEY; PKs as ID; timestamps/dates as
+    TIMESTAMP; numeric types as MEASURE; everything else as DIMENSION.
+    """
+    from .parsers.base import build_snapshot
+    from .types import Entity, FieldDef, FieldType, JoinDef, JoinType
+    from .adapters.postgres import _redact_dsn
+
+    def _classify(data_type: str, is_pk: bool) -> FieldType:
+        if is_pk:
+            return FieldType.ID
+        dt = data_type.lower()
+        if any(t in dt for t in ("timestamp", "date", "time")):
+            return FieldType.TIMESTAMP
+        if any(t in dt for t in ("numeric", "decimal", "real", "double", "float", "money")):
+            return FieldType.MEASURE
+        return FieldType.DIMENSION
+
+    # FK lookup: (src_schema, src_table, src_column) → (tgt_table, tgt_column)
+    fk_lookup: Dict[tuple, tuple] = {}
+    for row in fk_rows:
+        key = (row["src_schema"], row["src_table"], row["src_column"])
+        fk_lookup[key] = (row["tgt_table"], row["tgt_column"])
+
+    entities: Dict[str, Any] = {}
+    fields: Dict[str, Any] = {}
+    joins: List[Any] = []
+
+    for table_info in schema_summary:
+        schema_name = table_info["schema"]
+        table_name = table_info["table"]
+        entity_id = f"entity:{table_name}"
+        entity_field_ids: List[str] = []
+        grain: Optional[str] = None
+        join_target_counts: Dict[str, int] = {}
+
+        for col in table_info["columns"]:
+            col_name = col["name"]
+            is_pk = col["primary_key"]
+            fk_key = (schema_name, table_name, col_name)
+            is_fk = fk_key in fk_lookup
+            ft = FieldType.FOREIGN_KEY if is_fk else _classify(col["data_type"], is_pk)
+            field_id = f"field:{table_name}:{col_name}"
+
+            fields[field_id] = FieldDef(
+                id=field_id,
+                entity_id=entity_id,
+                name=col_name,
+                field_type=ft,
+                data_type=col["data_type"].upper(),
+                nullable=col["nullable"],
+                primary_key=is_pk,
+            )
+            entity_field_ids.append(field_id)
+
+            if is_pk and grain is None:
+                grain = col_name
+
+            if is_fk:
+                tgt_table, tgt_col = fk_lookup[fk_key]
+                tgt_entity_id = f"entity:{tgt_table}"
+                join_target_counts[tgt_entity_id] = join_target_counts.get(tgt_entity_id, 0) + 1
+                count = join_target_counts[tgt_entity_id]
+                join_id = (
+                    f"join:{table_name}:{tgt_table}"
+                    if count == 1
+                    else f"join:{table_name}:{tgt_table}:{col_name}"
+                )
+                joins.append(JoinDef(
+                    id=join_id,
+                    source_entity_id=entity_id,
+                    target_entity_id=tgt_entity_id,
+                    join_type=JoinType.LEFT,
+                    source_field_id=field_id,
+                    target_field_id=f"field:{tgt_table}:{tgt_col}",
+                    description=f"FK: {table_name}.{col_name} → {tgt_table}.{tgt_col}",
+                ))
+
+        entities[entity_id] = Entity(
+            id=entity_id,
+            name=table_name,
+            schema_name=schema_name,
+            fields=entity_field_ids,
+            grain=grain or "id",
+        )
+
+    return build_snapshot(
+        source_system="postgres_live",
+        source_version="1.0",
+        entities=entities,
+        fields=fields,
+        joins=joins,
+        metadata={
+            "source_type": "live_db",
+            "db_url": _redact_dsn(db_url),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool()
-def ingest_source(
+async def ingest_source(
     source_path: Optional[str] = None,
     snapshot_json: Optional[dict] = None,
     snapshot_name: str = "default",
 ) -> str:
     """
-    Ingest a database schema from a file. Call this FIRST when the user has a schema
-    file — Boyce auto-detects the format and parses it. Do not read or parse the
-    file yourself; just pass the path.
+    Ingest a database schema and store it as a named snapshot. Call this FIRST
+    before using ask_boyce or build_sql.
 
     Provide exactly one of source_path or snapshot_json.
 
     Args:
-        source_path: Path to any supported schema source. Boyce auto-detects the
-            format. Supported: .sql DDL files, dbt manifest.json, dbt project
-            directories (containing dbt_project.yml), LookML .lkml files,
-            SQLite .db/.sqlite files, Django models.py, SQLAlchemy models,
-            Prisma .prisma files, CSV/Parquet data files, or a pre-built
-            SemanticSnapshot .json file.
+        source_path: Either a file/directory path OR a live PostgreSQL DSN.
+            File formats auto-detected: .sql DDL files, dbt manifest.json, dbt
+            project directories (dbt_project.yml), LookML .lkml files, SQLite
+            .db/.sqlite files, Django models.py, SQLAlchemy models, Prisma
+            .prisma files, CSV/Parquet data files, pre-built SemanticSnapshot
+            .json files.
+            Live DB: pass a postgresql:// or postgres:// DSN — Boyce introspects
+            the schema directly (requires asyncpg + BOYCE_DB_URL or inline DSN).
         snapshot_json: A dict conforming to the SemanticSnapshot schema.
             Must include a valid snapshot_id (SHA-256 of canonical content).
             Use this to ingest a pre-built snapshot directly.
@@ -860,16 +989,44 @@ def ingest_source(
     Returns:
         JSON string with keys:
             snapshot_id, snapshot_name, entities_count, fields_count, joins_count,
-            source_type (when parsed from file)
+            source_type ("parsed" for file sources, "live_db" for DSN ingestion)
     """
     if source_path is not None:
-        try:
-            from .parsers import parse_from_path
-            snapshot = parse_from_path(source_path)
-        except Exception as e:
-            return json.dumps({
-                "error": {"code": -32602, "message": f"Failed to parse source: {e}"}
-            })
+        # Live-DB path: DSN → introspect via PostgresAdapter
+        if source_path.startswith(("postgresql://", "postgres://")):
+            if not _POSTGRES_AVAILABLE:
+                return json.dumps({
+                    "error": {
+                        "code": -32602,
+                        "message": (
+                            "asyncpg is not installed. "
+                            'Install it with: pip install "boyce[postgres]"'
+                        ),
+                    }
+                })
+            try:
+                from .adapters.postgres import PostgresAdapter
+                tmp_adapter = PostgresAdapter(source_path)
+                await tmp_adapter.connect()
+                try:
+                    schema_summary = await tmp_adapter.get_schema_summary()
+                    fk_rows = await tmp_adapter.get_foreign_keys()
+                finally:
+                    await tmp_adapter.disconnect()
+                snapshot = _build_snapshot_from_live_db(schema_summary, fk_rows, source_path)
+            except Exception as e:
+                return json.dumps({
+                    "error": {"code": -32602, "message": f"Failed to introspect live DB: {e}"}
+                })
+        else:
+            # File / directory path
+            try:
+                from .parsers import parse_from_path
+                snapshot = parse_from_path(source_path)
+            except Exception as e:
+                return json.dumps({
+                    "error": {"code": -32602, "message": f"Failed to parse source: {e}"}
+                })
 
         errors = validate_snapshot(snapshot.model_dump())
         if errors:

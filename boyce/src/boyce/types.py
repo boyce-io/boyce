@@ -174,19 +174,39 @@ class SemanticSnapshot(BaseModel):
 
     def find_join_path(self, source_entity_id: str, target_entity_id: str) -> List[JoinDef]:
         """
-        Find a join path between two entities (simple BFS implementation).
+        Find a join path between two entities (BFS, bidirectional FK traversal).
+
+        Joins can be traversed in either direction — forward (FK source → target)
+        or reverse (FK target → source). Reverse traversal is needed for junction
+        tables (M:N) where the FK points INTO the junction from the surrounding
+        entities (e.g. film → film_category requires reversing the FK
+        film_category.film_id → film.film_id).
+
+        Reversed JoinDef objects have source/target and field IDs swapped so the
+        SQL renderer produces correct ON clauses regardless of direction.
 
         Returns empty list if no path exists.
         """
         if source_entity_id == target_entity_id:
             return []
 
-        # Build adjacency list
+        # Build adjacency list with both forward and reverse edges.
         adj: Dict[str, List[JoinDef]] = {}
         for join in self.joins:
-            if join.source_entity_id not in adj:
-                adj[join.source_entity_id] = []
-            adj[join.source_entity_id].append(join)
+            # Forward edge
+            adj.setdefault(join.source_entity_id, []).append(join)
+            # Reverse edge — swapped source/target and field IDs so SQL renderer
+            # produces correct ON clauses when traversing in reverse.
+            reverse = JoinDef(
+                id=f"{join.id}:reverse",
+                source_entity_id=join.target_entity_id,
+                target_entity_id=join.source_entity_id,
+                join_type=join.join_type,
+                source_field_id=join.target_field_id,
+                target_field_id=join.source_field_id,
+                description=f"reverse: {join.description}" if join.description else None,
+            )
+            adj.setdefault(join.target_entity_id, []).append(reverse)
 
         # BFS to find path
         queue = deque([(source_entity_id, [])])

@@ -225,17 +225,20 @@ def parse_django_models(file_path: Path) -> SemanticSnapshot:
 
     tree = ast.parse(source)
 
-    # First pass: collect abstract models and their fields for inheritance.
-    # Also collect all class names that look like abstract mixins (abstract = True in Meta).
+    # First pass: collect abstract models and build class_name → table_name map.
+    # The table_name map is needed for FK target resolution when db_table overrides
+    # the class name (e.g. class Customer with db_table="customers").
     abstract_fields: Dict[str, List[dict]] = {}  # class_name → raw_fields
+    class_to_table: Dict[str, str] = {}  # class_name → actual table/entity name
+
     for node in tree.body:
         if not isinstance(node, ast.ClassDef):
             continue
-        raw_fields, is_abstract, _, _ = _extract_class_fields(node)
+        raw_fields, is_abstract, db_table, _ = _extract_class_fields(node)
         if is_abstract:
             abstract_fields[node.name] = raw_fields
-        # Also track classes that inherit from known abstract models (to resolve inheritance chain)
-        # N.B.: We only need to track the abstract flag here; inheritance is resolved in second pass.
+        else:
+            class_to_table[node.name] = db_table or node.name.lower()
 
     entities: Dict[str, Entity] = {}
     fields: Dict[str, FieldDef] = {}
@@ -318,9 +321,9 @@ def parse_django_models(file_path: Path) -> SemanticSnapshot:
             # Build JoinDef for FK fields
             if fdef["is_fk"] and fdef["fk_target"]:
                 raw_target = fdef["fk_target"]
-                # Convert class name → table name heuristic (lowercase)
-                # We'll use lowercase for now; may be overridden if we see db_table in later pass
-                target_table = raw_target.lower()
+                # Resolve class name → table name using the first-pass map.
+                # Falls back to lowercase class name if the class wasn't seen (e.g. cross-app FK).
+                target_table = class_to_table.get(raw_target, raw_target.lower())
                 target_entity_id = f"entity:{target_table}"
                 join_target_counts[target_table] = join_target_counts.get(target_table, 0) + 1
                 count = join_target_counts[target_table]

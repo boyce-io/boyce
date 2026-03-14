@@ -268,7 +268,7 @@ async def route_ingest(request: Request) -> JSONResponse:
     source_path = body.get("source_path")
     snapshot_json = body.get("snapshot_json")
     snapshot_name = body.get("snapshot_name", "default")
-    result = json.loads(ingest_source(source_path, snapshot_json, snapshot_name))
+    result = json.loads(await ingest_source(source_path, snapshot_json, snapshot_name))
     status = 400 if "error" in result else 200
     return JSONResponse(result, status_code=status)
 

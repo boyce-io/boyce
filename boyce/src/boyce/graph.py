@@ -78,6 +78,29 @@ class SemanticGraph:
                 key=join.id,
             )
 
+            # Add a reverse edge for FK joins so Dijkstra can traverse junction
+            # tables bidirectionally. Reverse weight is 1.5 (slightly higher than
+            # the forward FK weight of 1.0) so the natural FK direction is preferred
+            # when both paths exist. Explicit dbt/LookML joins (weight < 1.0) are
+            # strictly directional — no reverse edge.
+            if weight >= 1.0:
+                reverse_join = JoinDef(
+                    id=f"{join.id}:reverse",
+                    source_entity_id=join.target_entity_id,
+                    target_entity_id=join.source_entity_id,
+                    join_type=join.join_type,
+                    source_field_id=join.target_field_id,
+                    target_field_id=join.source_field_id,
+                    description=f"reverse: {join.description}" if join.description else None,
+                )
+                self.graph.add_edge(
+                    reverse_join.source_entity_id,
+                    reverse_join.target_entity_id,
+                    weight=1.5,
+                    join=reverse_join,
+                    key=reverse_join.id,
+                )
+
         self.infer_edges()
 
     def _calculate_join_weight(self, join: JoinDef, snapshot: SemanticSnapshot) -> float:

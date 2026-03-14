@@ -283,6 +283,36 @@ class PostgresAdapter(DatabaseAdapter):
             for row in table_rows
         ]
 
+    async def get_foreign_keys(self) -> List[Dict[str, Any]]:
+        """
+        Return all FK constraints in the database as a list of dicts.
+
+        Each dict has keys: src_schema, src_table, src_column,
+        tgt_schema, tgt_table, tgt_column.
+
+        Uses information_schema for portability (works on Postgres and Redshift).
+        """
+        conn = self._require_connection()
+        rows = await conn.fetch("""
+            SELECT
+                kcu.table_schema  AS src_schema,
+                kcu.table_name    AS src_table,
+                kcu.column_name   AS src_column,
+                ccu.table_schema  AS tgt_schema,
+                ccu.table_name    AS tgt_table,
+                ccu.column_name   AS tgt_column
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema   = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+                ON tc.constraint_name = ccu.constraint_name
+                AND tc.table_schema   = ccu.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+            ORDER BY src_schema, src_table, src_column
+        """)
+        return [dict(r) for r in rows]
+
     # ------------------------------------------------------------------
     # Data profiling
     # ------------------------------------------------------------------

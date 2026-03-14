@@ -353,6 +353,7 @@ CEO Directive fully satisfied.
 - [ ] Content: Story 1 (adoption/IC) — clean README, 30-second demo
 - [ ] Content: Story 2 (trust/C-suite) — Null Trap technical essay
 - [ ] **VS Code extension** — thin TypeScript GUI over HTTP API, marketplace publish (Block 1b)
+- [ ] **With/without Boyce comparison table** — concise table for README + boyce.io showing what changes when Boyce is present (determinism, safety layer, NULL trap, audit) vs. raw agent SQL generation. Positioned near top of both surfaces. See conversation 2026-03-13 for the mental model to encode.
 
 **COMPLETE — Support Readiness (2026-03-11)**
 
@@ -427,6 +428,7 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 - [ ] Airflow DAG parser
 - [ ] Technical content series beyond the Null Trap (3 essays)
 - [ ] Adoption outreach — StructuredFilter as IR for other NL-to-SQL tools
+- [ ] **Benchmark program** — batch comparison of Boyce vs. no-Boyce SQL generation across delivery platforms (Claude Code, Cursor, Windsurf at minimum). Metrics: SQL accuracy (human-graded or ground-truth compared), token consumption per query, error rate. Produces publishable evidence for the with/without comparison table. Needs its own planning doc when sequenced. (See conversation 2026-03-13 for scope.)
 
 **Gate:** At least one external tool produces or consumes SemanticSnapshot. 2+ essays published.
 
@@ -492,12 +494,22 @@ The `extension/` scaffold is preserved but not actively developed. VS Code exten
 when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension.md`.
 
 ### Recent completions
-- **2026-03-13 (PM):** MCP integration testing with Claude Code as host LLM:
-  - 6 bugs found and fixed: boyce-init config path, ingest_source description, snapshot hash
-    recomputation, builder COUNT field resolution, builder GROUP BY field resolution, ORDER BY/LIMIT guidance.
-  - 3 queries tested successfully (Mode A): supplier product counts, top-5 expensive products,
-    cross-entity WHERE filters. All producing correct SQL after fixes.
-  - Test environment: `~/boyce-test/` with Northwind DDL, CLAUDE.md guardrails for test CC.
+- **2026-03-13 (late evening):** MCP integration testing session 3 — 6 consecutive passes, no new failures:
+  - 4 bugs found and fixed: safety.py missing 4 Redshift lint rules (CONCAT, STRING_AGG, FILTER, RECURSIVE),
+    concept_map.fields ignored in SELECT (builder fell back to SELECT *), filter operator aliases
+    (NOT_IN/IS_NULL/IS_NOT_NULL) rejected by validator + builder, Django FK target resolution diverged
+    from db_table override.
+  - Tests passing: LIKE, NOT_IN (alias), policy_context.resolved_predicates, validate_sql CONCAT lint,
+    Django models (5e/31f/5j), Northwind DDL (13e/88f/8j). **13 total bugs fixed across 3 sessions.**
+  - Untested: live DB (Pagila), clean venv install, Cursor cross-platform. CEO version decision pending.
+- **2026-03-13 (evening):** MCP integration testing session 2 — 6 more bugs found and fixed:
+  - temporal_filters dropped, DATE_TRUNC docstring gap, LookML directory ingest, LookML model file 0 entities,
+    LookML join source view wrong, ingest_source validation gap.
+  - Tests passing (after fixes): multi-hop joins, temporal DATE_TRUNC, validate_sql, dbt jaffle_shop, LookML thelook, NULL trap demo.
+- **2026-03-13 (PM):** MCP integration testing session 1 — 6 bugs found and fixed:
+  - boyce-init config path, ingest_source description, snapshot hash recomputation, builder COUNT field
+    resolution, builder GROUP BY field resolution, ORDER BY/LIMIT guidance.
+  - 3 queries tested successfully (Mode A): supplier product counts, top-5 expensive products, cross-entity WHERE filters.
 - **2026-03-13 (AM):** Architectural overhaul (CEO/Opus directive, 10 changes):
   - ask_boyce tri-modal (Mode A/B/C), validate_sql new tool, build_sql/solve_path internalized (7-tool surface),
   - StructuredFilter docs updated with examples, intent classifier removed, boyce-init expands to 6 platforms,

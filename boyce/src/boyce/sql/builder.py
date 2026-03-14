@@ -27,6 +27,21 @@ from boyce.types import (
 )
 
 
+# Operator aliases — host LLMs use underscore variants; normalise to SQL spacing.
+_OPERATOR_ALIASES: Dict[str, str] = {
+    "NOT_IN": "NOT IN",
+    "IS_NULL": "IS NULL",
+    "IS_NOT_NULL": "IS NOT NULL",
+    "ISNULL": "IS NULL",
+    "ISNOTNULL": "IS NOT NULL",
+    "NOT_EQUALS": "!=",
+    "GREATER_THAN": ">",
+    "GREATER_THAN_OR_EQUAL": ">=",
+    "LESS_THAN": "<",
+    "LESS_THAN_OR_EQUAL": "<=",
+}
+
+
 class SQLBuilder:
     """
     Dialect-aware SQL builder for rendering executable SQL from planner output.
@@ -295,6 +310,14 @@ class SQLBuilder:
                 else:
                     select_fields.append(f"{col_quoted} AS {alias_quoted}")
 
+        # When no dimensions/metrics were specified, fall back to concept_map.fields
+        # for explicit column projection (host LLM uses fields for raw SELECT queries).
+        if not select_fields:
+            for field in concept_map.get("fields", []):
+                field_name = field.get("field_name", "")
+                if field_name:
+                    select_fields.append(self.dialect.quote_identifier(field_name))
+
         if not select_fields:
             select_fields.append("*")
 
@@ -408,7 +431,7 @@ class SQLBuilder:
         for filter_item in filters:
             # Check if it's a TemporalFilter (structured)
             if isinstance(filter_item, dict) and "operator" in filter_item:
-                operator = filter_item.get("operator", "")
+                operator = _OPERATOR_ALIASES.get(filter_item.get("operator", ""), filter_item.get("operator", ""))
 
                 # Handle temporal filters
                 if operator in ["trailing_interval", "leading_interval", "between", "on_or_after", "on_or_before", "equals"]:
@@ -427,7 +450,7 @@ class SQLBuilder:
                 else:
                     filter_def = FilterDef(
                         field_id=filter_item.get("field_id", ""),
-                        operator=FilterOperator(filter_item.get("operator", "=")),
+                        operator=FilterOperator(operator or "="),
                         value=filter_item.get("value"),
                         entity_id=filter_item.get("entity_id")
                     )
