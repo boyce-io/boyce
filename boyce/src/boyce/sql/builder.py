@@ -8,7 +8,7 @@ structured objects resolved by the Planner.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from boyce.sql.dialects import (
     SQLDialect,
@@ -86,6 +86,77 @@ class SQLBuilder:
         """
         return self.dialect.render_cast(expression, type_name)
 
+    # ------------------------------------------------------------------
+    # Field reference resolution — single source of truth
+    # ------------------------------------------------------------------
+
+    def _resolve_field_ref(
+        self,
+        field_id: str,
+        field_name: str,
+        snapshot: SemanticSnapshot,
+        entity_id: str = "",
+    ) -> Tuple[str, str]:
+        """Resolve a field reference to table-qualified SQL and its entity name.
+
+        All SELECT, GROUP BY, and WHERE field references funnel through here.
+
+        Resolution order:
+          1. Explicit *entity_id* → snapshot.entities  (filters set this)
+          2. *field_id* → snapshot.fields → entity     (dimensions / metrics)
+          3. Fallback: bare quoted *field_name*, empty entity name
+
+        Returns:
+            (sql_ref, entity_name) — e.g. ('"customer"."email"', 'customer')
+            or ('"email"', '') when resolution fails.
+        """
+        q = self.dialect.quote_identifier
+
+        # Strategy 1: explicit entity_id (filters provide this)
+        if entity_id:
+            entity = snapshot.entities.get(entity_id)
+            if entity:
+                return f"{q(entity.name)}.{q(field_name)}", entity.name
+
+        # Strategy 2: field registry lookup
+        if field_id:
+            field_def = snapshot.fields.get(field_id)
+            if field_def:
+                entity = snapshot.entities.get(field_def.entity_id)
+                if entity:
+                    return f"{q(entity.name)}.{q(field_def.name)}", entity.name
+
+        # Fallback: bare column
+        return q(field_name), ""
+
+    @staticmethod
+    def _resolve_grouping_field(
+        field_ref: str, snapshot: SemanticSnapshot
+    ) -> Tuple[str, str]:
+        """Resolve a grouping_fields entry to (field_id, column_name).
+
+        grouping_fields entries may be full field_ids ("field:Table:Col")
+        or bare column names.
+        """
+        # Direct field_id match
+        if field_ref in snapshot.fields:
+            return field_ref, snapshot.fields[field_ref].name
+
+        # "field:Table:Col" format — search by column name
+        if ":" in field_ref:
+            col_name = field_ref.split(":")[-1]
+            for fid, fdef in snapshot.fields.items():
+                if fdef.name == col_name:
+                    return fid, fdef.name
+            return "", col_name
+
+        # Bare column name
+        return "", field_ref
+
+    # ------------------------------------------------------------------
+    # Top-level SQL assembly
+    # ------------------------------------------------------------------
+
     def build_final_sql(
         self,
         planner_output: Dict[str, Any],
@@ -159,6 +230,10 @@ class SQLBuilder:
 
         return final_sql
 
+    # ------------------------------------------------------------------
+    # FROM / JOIN clauses
+    # ------------------------------------------------------------------
+
     def _build_joins_from_snapshot(
         self,
         snapshot: SemanticSnapshot,
@@ -231,6 +306,10 @@ class SQLBuilder:
             # Multiple entities: resolve join path using snapshot.joins
             return resolver.resolve_joins_from_entity_list(entity_ids)
 
+    # ------------------------------------------------------------------
+    # SELECT clause
+    # ------------------------------------------------------------------
+
     def _build_select_clause(
         self,
         concept_map: Dict[str, Any],
@@ -240,190 +319,87 @@ class SQLBuilder:
         """Build SELECT clause from concept_map and grain_context with DATE_TRUNC support."""
         select_fields: List[str] = []
         aggregation_required = grain_context.get("aggregation_required", False)
-
-        # Check if DATE_TRUNC is required for temporal grouping
         date_trunc_field = grain_context.get("date_trunc_field")
         date_trunc_unit = grain_context.get("date_trunc_unit")
+        q = self.dialect.quote_identifier
 
-        # Add dimension fields (with DATE_TRUNC if specified)
+        # --- Dimension fields ---
         dimensions = concept_map.get("dimensions", [])
         for dim in dimensions:
             field_id = dim.get("field_id", "")
             field_name = dim.get("field_name", "")
-
             if not field_name:
                 continue
 
-            # Check if this field needs DATE_TRUNC
             if date_trunc_field and field_id == date_trunc_field and date_trunc_unit:
-                # Get field from snapshot to get entity name for table qualification
-                field_def = snapshot.fields.get(field_id)
-                if field_def:
-                    entity = snapshot.entities.get(field_def.entity_id)
-                    if entity:
-                        table_quoted = self.dialect.quote_identifier(entity.name)
-                        field_quoted = self.dialect.quote_identifier(field_name)
-                        date_trunc_expr = self.dialect.render_date_trunc(
-                            f"{table_quoted}.{field_quoted}",
-                            date_trunc_unit
-                        )
-                        select_fields.append(f"{date_trunc_expr} AS {self.dialect.quote_identifier(f'{field_name}_month')}")
-                    else:
-                        date_trunc_expr = self.dialect.render_date_trunc(
-                            self.dialect.quote_identifier(field_name),
-                            date_trunc_unit
-                        )
-                        select_fields.append(f"{date_trunc_expr} AS {self.dialect.quote_identifier(f'{field_name}_month')}")
-                else:
-                    date_trunc_expr = self.dialect.render_date_trunc(
-                        self.dialect.quote_identifier(field_name),
-                        date_trunc_unit
-                    )
-                    select_fields.append(f"{date_trunc_expr} AS {self.dialect.quote_identifier(f'{field_name}_month')}")
+                ref, _ = self._resolve_field_ref(field_id, field_name, snapshot)
+                expr = self.dialect.render_date_trunc(ref, date_trunc_unit)
+                select_fields.append(f"{expr} AS {q(f'{field_name}_month')}")
             else:
-                # Regular dimension field — table-qualify using snapshot.
-                # If two dimensions share the same field_name, alias each as
-                # "<table>_<field>" to avoid ambiguous column references.
-                field_def = snapshot.fields.get(field_id) if field_id else None
-                if field_def:
-                    entity = snapshot.entities.get(field_def.entity_id)
-                    if entity:
-                        table_quoted = self.dialect.quote_identifier(entity.name)
-                        field_quoted = self.dialect.quote_identifier(field_name)
-                        conflict = any(
-                            d.get("field_name") == field_name and d.get("field_id") != field_id
-                            for d in dimensions
-                        )
-                        if conflict:
-                            alias = self.dialect.quote_identifier(f"{entity.name}_{field_name}")
-                            select_fields.append(f"{table_quoted}.{field_quoted} AS {alias}")
-                        else:
-                            select_fields.append(f"{table_quoted}.{field_quoted}")
-                    else:
-                        select_fields.append(self.dialect.quote_identifier(field_name))
+                ref, entity_name = self._resolve_field_ref(field_id, field_name, snapshot)
+                conflict = any(
+                    d.get("field_name") == field_name and d.get("field_id") != field_id
+                    for d in dimensions
+                )
+                if conflict and entity_name:
+                    select_fields.append(f"{ref} AS {q(f'{entity_name}_{field_name}')}")
                 else:
-                    select_fields.append(self.dialect.quote_identifier(field_name))
+                    select_fields.append(ref)
 
-        # Add metrics (with aggregation if required)
-        metrics = concept_map.get("metrics", [])
-        for metric in metrics:
+        # --- Metric fields ---
+        for metric in concept_map.get("metrics", []):
             metric_name = metric.get("metric_name", "")
             field_id = metric.get("field_id", "")
-            if metric_name:
-                # Resolve field_id → actual column name for the aggregation expression
-                col_name = None
-                col_entity = None
-                if field_id:
-                    field_def = snapshot.fields.get(field_id)
-                    if field_def:
-                        col_name = field_def.name
-                        col_entity = snapshot.entities.get(field_def.entity_id)
-                    else:
-                        # field_id format is "field:Table:ColumnName" — extract last segment
-                        col_name = field_id.split(":")[-1] if ":" in field_id else field_id
-                if not col_name:
-                    col_name = metric_name
-                # Table-qualify the metric column reference
-                if col_entity:
-                    col_quoted = (
-                        f"{self.dialect.quote_identifier(col_entity.name)}"
-                        f".{self.dialect.quote_identifier(col_name)}"
-                    )
-                else:
-                    col_quoted = self.dialect.quote_identifier(col_name)
-                alias_quoted = self.dialect.quote_identifier(metric_name)
-                if aggregation_required:
-                    agg_func = metric.get("aggregation_type", "SUM")
-                    # COUNT_DISTINCT requires COUNT(DISTINCT ...) syntax, not a bare function call.
-                    if agg_func.upper() == "COUNT_DISTINCT":
-                        agg_expr = f"COUNT(DISTINCT {col_quoted})"
-                    else:
-                        agg_expr = f"{agg_func}({col_quoted})"
-                    select_fields.append(f"{agg_expr} AS {alias_quoted}")
-                else:
-                    select_fields.append(f"{col_quoted} AS {alias_quoted}")
+            if not metric_name:
+                continue
 
-        # When no dimensions/metrics were specified, fall back to concept_map.fields
-        # for explicit column projection (host LLM uses fields for raw SELECT queries).
+            # Resolve column name: field_def.name → field_id tail → metric_name
+            if field_id:
+                field_def = snapshot.fields.get(field_id)
+                fallback = field_def.name if field_def else (
+                    field_id.split(":")[-1] if ":" in field_id else metric_name
+                )
+            else:
+                fallback = metric_name
+
+            col_ref, _ = self._resolve_field_ref(field_id, fallback, snapshot)
+            alias = q(metric_name)
+
+            if aggregation_required:
+                agg = metric.get("aggregation_type", "SUM")
+                if agg.upper() == "COUNT_DISTINCT":
+                    select_fields.append(f"COUNT(DISTINCT {col_ref}) AS {alias}")
+                else:
+                    select_fields.append(f"{agg}({col_ref}) AS {alias}")
+            else:
+                select_fields.append(f"{col_ref} AS {alias}")
+
+        # --- Fallback: concept_map.fields (raw SELECT without aggregation) ---
         if not select_fields:
-            for field in concept_map.get("fields", []):
-                field_name = field.get("field_name", "")
-                if field_name:
-                    select_fields.append(self.dialect.quote_identifier(field_name))
+            fields_list = concept_map.get("fields", [])
+            for field in fields_list:
+                fid = field.get("field_id", "")
+                fname = field.get("field_name", "")
+                if not fname:
+                    continue
+                ref, ename = self._resolve_field_ref(fid, fname, snapshot)
+                conflict = any(
+                    f.get("field_name") == fname and f.get("field_id") != fid
+                    for f in fields_list
+                )
+                if conflict and ename:
+                    select_fields.append(f"{ref} AS {q(f'{ename}_{fname}')}")
+                else:
+                    select_fields.append(ref)
 
         if not select_fields:
             select_fields.append("*")
 
         return f"SELECT {', '.join(select_fields)}"
 
-    def _build_from_clause(
-        self,
-        join_path: List[tuple],
-        concept_map: Dict[str, Any]
-    ) -> str:
-        """Build FROM clause from join_path."""
-        if join_path:
-            first_join = join_path[0]
-            if isinstance(first_join, (list, tuple)) and len(first_join) >= 1:
-                source_entity_id = first_join[0]
-                entity_name = source_entity_id.replace("entity:", "") if "entity:" in source_entity_id else source_entity_id
-                quoted = self.dialect.quote_identifier(entity_name)
-                return f"FROM {quoted}"
-
-        entities = concept_map.get("entities", [])
-        if entities:
-            entity_name = entities[0].get("entity_name", "")
-            if entity_name:
-                quoted = self.dialect.quote_identifier(entity_name)
-                return f"FROM {quoted}"
-
-        return "FROM unknown_table"
-
-    def _build_join_clauses(self, join_path: List) -> List[str]:
-        """Build JOIN clauses from join_path."""
-        join_clauses: List[str] = []
-
-        for join_item in join_path:
-            # Handle dict format (preferred)
-            if isinstance(join_item, dict):
-                source_entity_id = join_item.get("source_entity_id", "")
-                target_entity_id = join_item.get("target_entity_id", "")
-                source_field_id = join_item.get("source_field_id", "")
-                target_field_id = join_item.get("target_field_id", "")
-
-                source_name = source_entity_id.replace("entity:", "") if "entity:" in source_entity_id else source_entity_id
-                target_name = target_entity_id.replace("entity:", "") if "entity:" in target_entity_id else target_entity_id
-
-                source_field_name = source_field_id.split(":")[-1] if ":" in source_field_id else source_field_id
-                target_field_name = target_field_id.split(":")[-1] if ":" in target_field_id else target_field_id
-
-                source_quoted = self.dialect.quote_identifier(source_name)
-                target_quoted = self.dialect.quote_identifier(target_name)
-                source_field_quoted = self.dialect.quote_identifier(source_field_name)
-                target_field_quoted = self.dialect.quote_identifier(target_field_name)
-
-                join_condition = f"{source_quoted}.{source_field_quoted} = {target_quoted}.{target_field_quoted}"
-                join_clause = f"LEFT OUTER JOIN {target_quoted} ON {join_condition}"
-                join_clauses.append(join_clause)
-
-            # Handle tuple format (legacy)
-            elif isinstance(join_item, (list, tuple)) and len(join_item) >= 3:
-                source_entity_id = join_item[0]
-                target_entity_id = join_item[1]
-                join_key = join_item[2]
-
-                source_name = source_entity_id.replace("entity:", "") if "entity:" in source_entity_id else source_entity_id
-                target_name = target_entity_id.replace("entity:", "") if "entity:" in target_entity_id else target_entity_id
-
-                source_quoted = self.dialect.quote_identifier(source_name)
-                target_quoted = self.dialect.quote_identifier(target_name)
-                key_quoted = self.dialect.quote_identifier(join_key)
-
-                join_condition = f"{source_quoted}.{key_quoted} = {target_quoted}.{key_quoted}"
-                join_clause = f"LEFT OUTER JOIN {target_quoted} ON {join_condition}"
-                join_clauses.append(join_clause)
-
-        return join_clauses
+    # ------------------------------------------------------------------
+    # WHERE clause
+    # ------------------------------------------------------------------
 
     def _build_where_clause(
         self,
@@ -516,39 +492,15 @@ class SQLBuilder:
             return str(value)
 
     def _render_filter_def(self, filter_def: FilterDef, snapshot: Optional[SemanticSnapshot] = None) -> str:
-        """
-        Render a FilterDef into SQL predicate with fully qualified field names.
+        """Render a FilterDef into a SQL predicate with fully qualified field names."""
+        field_name = filter_def.field_id.split(":")[-1] if ":" in filter_def.field_id else filter_def.field_id
 
-        Args:
-            filter_def: FilterDef to render
-            snapshot: Optional SemanticSnapshot to resolve entity names for fully qualified references
-
-        Returns:
-            SQL predicate string with fully qualified field names
-        """
-        field_name = filter_def.field_id.split(":")[-1]
-
-        # Get fully qualified field reference (entity.field)
-        if snapshot and filter_def.entity_id:
-            entity = snapshot.entities.get(filter_def.entity_id)
-            if entity:
-                entity_quoted = self.dialect.quote_identifier(entity.name)
-                field_quoted = self.dialect.quote_identifier(field_name)
-                field_ref = f"{entity_quoted}.{field_quoted}"
-            else:
-                field_ref = self.dialect.quote_identifier(field_name)
-        elif snapshot:
-            field_def = snapshot.fields.get(filter_def.field_id)
-            if field_def:
-                entity = snapshot.entities.get(field_def.entity_id)
-                if entity:
-                    entity_quoted = self.dialect.quote_identifier(entity.name)
-                    field_quoted = self.dialect.quote_identifier(field_name)
-                    field_ref = f"{entity_quoted}.{field_quoted}"
-                else:
-                    field_ref = self.dialect.quote_identifier(field_name)
-            else:
-                field_ref = self.dialect.quote_identifier(field_name)
+        # Resolve field reference through the single helper
+        if snapshot:
+            field_ref, _ = self._resolve_field_ref(
+                filter_def.field_id, field_name, snapshot,
+                entity_id=filter_def.entity_id or "",
+            )
         else:
             field_ref = self.dialect.quote_identifier(field_name)
 
@@ -584,6 +536,10 @@ class SQLBuilder:
         else:
             raise ValueError(f"Unsupported filter operator: {filter_def.operator}")
 
+    # ------------------------------------------------------------------
+    # GROUP BY clause
+    # ------------------------------------------------------------------
+
     def _build_group_by_clause(
         self,
         grain_context: Dict[str, Any],
@@ -591,71 +547,21 @@ class SQLBuilder:
     ) -> str:
         """Build GROUP BY clause from grain_context with DATE_TRUNC support."""
         grouping_fields = grain_context.get("grouping_fields", [])
-        aggregation_required = grain_context.get("aggregation_required", False)
+        if not grain_context.get("aggregation_required", False) or not grouping_fields:
+            return ""
+
         date_trunc_field = grain_context.get("date_trunc_field")
         date_trunc_unit = grain_context.get("date_trunc_unit")
+        quoted: List[str] = []
 
-        if aggregation_required and grouping_fields:
-            quoted_fields: List[str] = []
+        for field_ref in grouping_fields:
+            field_id, col_name = self._resolve_grouping_field(field_ref, snapshot)
 
-            for field_ref in grouping_fields:
-                # grouping_fields may contain field_ids ("field:Table:Col") or plain names.
-                # Resolve to the actual column name via snapshot.
-                field_id = None
-                col_name = field_ref
-                if field_ref in snapshot.fields:
-                    field_id = field_ref
-                    col_name = snapshot.fields[field_ref].name
-                elif ":" in field_ref:
-                    # "field:Table:ColumnName" — extract last segment as fallback
-                    col_name = field_ref.split(":")[-1]
-                    # Also try to find the actual field_id for DATE_TRUNC lookup
-                    for fid, fdef in snapshot.fields.items():
-                        if fid == field_ref or fdef.name == col_name:
-                            field_id = fid
-                            col_name = fdef.name
-                            break
+            if date_trunc_field and date_trunc_unit and field_id == date_trunc_field:
+                ref, _ = self._resolve_field_ref(field_id, col_name, snapshot)
+                quoted.append(self.dialect.render_date_trunc(ref, date_trunc_unit))
+            else:
+                ref, _ = self._resolve_field_ref(field_id, col_name, snapshot)
+                quoted.append(ref)
 
-                # Check if this field needs DATE_TRUNC in GROUP BY
-                if date_trunc_field and date_trunc_unit and field_id == date_trunc_field:
-                    field_def = snapshot.fields.get(field_id)
-                    if field_def:
-                        entity = snapshot.entities.get(field_def.entity_id)
-                        if entity:
-                            table_quoted = self.dialect.quote_identifier(entity.name)
-                            field_quoted = self.dialect.quote_identifier(col_name)
-                            date_trunc_expr = self.dialect.render_date_trunc(
-                                f"{table_quoted}.{field_quoted}",
-                                date_trunc_unit
-                            )
-                            quoted_fields.append(date_trunc_expr)
-                        else:
-                            date_trunc_expr = self.dialect.render_date_trunc(
-                                self.dialect.quote_identifier(col_name),
-                                date_trunc_unit
-                            )
-                            quoted_fields.append(date_trunc_expr)
-                    else:
-                        quoted_fields.append(self.dialect.quote_identifier(col_name))
-                else:
-                    # Table-qualify via snapshot when possible
-                    if field_id:
-                        fdef = snapshot.fields.get(field_id)
-                        if fdef:
-                            entity = snapshot.entities.get(fdef.entity_id)
-                            if entity:
-                                quoted_fields.append(
-                                    f"{self.dialect.quote_identifier(entity.name)}"
-                                    f".{self.dialect.quote_identifier(col_name)}"
-                                )
-                            else:
-                                quoted_fields.append(self.dialect.quote_identifier(col_name))
-                        else:
-                            quoted_fields.append(self.dialect.quote_identifier(col_name))
-                    else:
-                        quoted_fields.append(self.dialect.quote_identifier(col_name))
-
-            if quoted_fields:
-                return f"GROUP BY {', '.join(quoted_fields)}"
-
-        return ""
+        return f"GROUP BY {', '.join(quoted)}" if quoted else ""
