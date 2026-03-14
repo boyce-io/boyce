@@ -1622,7 +1622,12 @@ async def ask_boyce(
         # Mode C: credentials not configured — return schema guidance for host LLM
         return _build_schema_guidance(natural_language_query, snapshot, snapshot_name)
     except Exception as e:
-        # Actual LLM error (bad key, network failure, parse error)
+        # Auth errors → Mode C fallback (bad key ≡ no key for the user's purpose)
+        err_type = type(e).__name__
+        if "Auth" in err_type or "Permission" in err_type:
+            logger.warning("LLM credentials invalid — Mode C fallback: %s", e)
+            return _build_schema_guidance(natural_language_query, snapshot, snapshot_name)
+        # Non-auth errors (network failure, parse error) — hard error
         logger.exception("Unexpected error in plan_query")
         _audit.log_query(
             query=natural_language_query, snapshot_name=snapshot_name,
