@@ -413,7 +413,11 @@ def _ask_checkbox(
             _questionary.Choice(c, checked=(pre_checked[i] if pre_checked else False))
             for i, c in enumerate(choices)
         ]
-        result = _q.checkbox(prompt, choices=q_choices).ask()
+        result = _q.checkbox(
+            prompt,
+            choices=q_choices,
+            instruction="(Space to toggle, Enter to confirm)",
+        ).ask()
         return result or []
 
     # Fallback: show with indicators and accept comma-separated numbers
@@ -455,7 +459,7 @@ def _step_editors(hosts: List[MCPHost]) -> List[MCPHost]:
     Let the user select which editors to configure.
     Returns list of selected MCPHost objects.
     """
-    _print_step(1, 3, "Editor")
+    _print_step(1, 3, "Select Your Editors")
 
     # Sort: detected first, then alphabetical
     detected = [h for h in hosts if h.exists]
@@ -465,20 +469,19 @@ def _step_editors(hosts: List[MCPHost]) -> List[MCPHost]:
     # Build choice labels
     labels: List[str] = []
     for h in ordered:
-        if h.has_boyce:
-            label = f"{h.name}  (configured — select to update)"
-        elif h.exists:
+        if h.exists:
             label = f"{h.name}  (detected)"
         else:
             label = h.name
         labels.append(label)
     labels.append(_SOMETHING_ELSE)
 
-    # Pre-check detected editors that don't already have boyce
-    pre_checked = [h.exists and not h.has_boyce for h in ordered] + [False]
+    # Pre-check all detected editors — if you're running the wizard,
+    # you want every installed editor configured (especially for new DB URLs)
+    pre_checked = [h.exists for h in ordered] + [False]
 
     selected_labels = _ask_checkbox(
-        "Which editors do you use?  (Space to toggle, Enter to confirm)",
+        "Select your editors",
         labels,
         pre_checked=pre_checked,
     )
@@ -636,7 +639,7 @@ def _step_databases() -> List[Tuple[str, str]]:
     Let the user configure database connections.
     Returns list of (name, dsn) tuples.
     """
-    _print_step(2, 3, "Database")
+    _print_step(2, 3, "Connect Your Database")
 
     print("  Connect to your database for live queries and SQL validation.")
     print("  Press Enter to skip — you can always add this later.\n")
@@ -671,7 +674,7 @@ def _step_data_sources() -> List[Tuple[str, str]]:
     Let the user discover and ingest data sources.
     Returns list of (snapshot_name, result_description) for successfully ingested sources.
     """
-    _print_step(3, 3, "Data Sources")
+    _print_step(3, 3, "Add Your Data Sources")
 
     print("  Boyce can also learn your schema from files you already have:")
     print("    • dbt projects (models, sources, schema.yml)")
