@@ -27,7 +27,7 @@ The core engine is MIT forever. IDE extensions are the experience layer where mo
 |-------|---------|-------------|
 | **Protocol** (SemanticSnapshot spec) | MIT forever | None — adoption IS the return |
 | **Core library** (kernel, parsers, safety, MCP server) | MIT forever | None — this is what gets adopted |
-| **CLI tools** (boyce-scan, boyce-init, boyce ask) | MIT forever | None — onboarding funnel |
+| **CLI tools** (boyce scan, boyce init, boyce ask) | MIT forever | None — onboarding funnel |
 | **IDE extensions** (VS Code, JetBrains) | Free tier + Pro | Pro features: visual schema explorer, query history, team snapshot sharing |
 | **Hosted service** (future) | SaaS | Managed Boyce — zero self-hosting, SSO, audit dashboard |
 
@@ -56,7 +56,7 @@ boyce serve --http
     └── /ingest  → ingest sources
 ```
 
-The user configures their LLM API key once via `boyce-init`. The extension never touches it.
+The user configures their LLM API key once via `boyce init`. The extension never touches it.
 
 ### Two LLM Roles (critical distinction)
 1. **The Host LLM** — in MCP hosts (Claude Code, Cursor), the host LLM routes to Boyce tools. VS Code has no native LLM, so this role doesn't exist.
@@ -131,7 +131,7 @@ the HTTP API instead of the old MCP/LSP protocol.
 ### Step 6: Setup Wizard
 - On first activation (no `.boyce/config.json` found):
   - Prompt to install `boyce` via pip/uv if not found
-  - Run `boyce-init` equivalent: configure LLM provider + API key
+  - Run `boyce init` equivalent: configure LLM provider + API key
   - Scan workspace for parseable sources
   - Store config in `.boyce/config.json`
 - Cursor model: **Sonnet 4.6**
@@ -167,7 +167,7 @@ Pro pricing TBD. Start free-only for adoption; add pro tier after organic usage 
 - [ ] Schema tree shows entities and fields from ingested snapshots
 - [ ] "Run SQL" executes queries and shows results in a table
 - [ ] Auto-starts `boyce serve --http` when not running
-- [ ] Setup wizard guides first-time users through `boyce-init` equivalent
+- [ ] Setup wizard guides first-time users through `boyce init` equivalent
 - [ ] Works without any LLM for schema browsing / manual SQL execution
 - [ ] Works with BOYCE_PROVIDER configured for NL → SQL via `/chat`
 

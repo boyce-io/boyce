@@ -494,51 +494,13 @@ VS Code has native GA MCP support. Boyce works in VS Code via `.vscode/mcp.json`
 The `extension/` scaffold is preserved but not actively developed. VS Code extension becomes Option 2 (UX sugar)
 when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension.md`.
 
-### Recent completions
-- **2026-03-16:** Init wizard overhaul + discovery system + CLI convention change:
-  - Full `init_wizard.py` rewrite: 3-step interactive flow (editors → DB → data sources), questionary + fallback
-  - New `discovery.py` module: auto-detect data source projects on filesystem (8 parser types)
-  - CLI convention: `boyce init` / `boyce scan` subcommands (legacy hyphenated entry points preserved)
-  - Bug fixes: discovery→ingestion path resolution, nested LookML false positive, DSN encoding, manifest detection
-  - Test fixtures: `airflow_analytics/` (8 DDL tables), `sample_sqlite/` (5 tables + seed data)
-  - `test_discovery.py`: 27 new automated tests (detection, resolution, walk, ingestion)
-  - 316 tests, 20 CLI smoke checks, all green
-- **2026-03-14 (early morning):** Battery 5-6 + Opus refactor:
-  - Battery 5 (10 tests): 2 bugs found — Bug 22 (column collision, bare field names), Bug 23 (filter on non-joined entity). Both fixed.
-  - Opus refactor: extracted `_resolve_field_ref()` helper, eliminated root cause of 5 builder bugs (4, 5, 10, 16, 22). Deleted 66 lines dead code. Net -94 lines. Commit: `ec8bd15`.
-  - Battery 6 (4 tests): 1 bug found — Bug 24 (auth errors hit generic handler instead of Mode C fallback). Fixed. Commit: `fb37f6b`.
-  - **Total: 24 bugs found and fixed across 7 sessions. 289 tests green. Cursor cross-platform test is next gate.**
-- **2026-03-13 (late evening):** MCP integration testing session 3 — 6 consecutive passes, no new failures:
-  - 4 bugs found and fixed: safety.py missing 4 Redshift lint rules (CONCAT, STRING_AGG, FILTER, RECURSIVE),
-    concept_map.fields ignored in SELECT (builder fell back to SELECT *), filter operator aliases
-    (NOT_IN/IS_NULL/IS_NOT_NULL) rejected by validator + builder, Django FK target resolution diverged
-    from db_table override.
-  - Tests passing: LIKE, NOT_IN (alias), policy_context.resolved_predicates, validate_sql CONCAT lint,
-    Django models (5e/31f/5j), Northwind DDL (13e/88f/8j). **13 total bugs fixed across 3 sessions.**
-  - Untested: live DB (Pagila), clean venv install, Cursor cross-platform. CEO version decision pending.
-- **2026-03-13 (evening):** MCP integration testing session 2 — 6 more bugs found and fixed:
-  - temporal_filters dropped, DATE_TRUNC docstring gap, LookML directory ingest, LookML model file 0 entities,
-    LookML join source view wrong, ingest_source validation gap.
-  - Tests passing (after fixes): multi-hop joins, temporal DATE_TRUNC, validate_sql, dbt jaffle_shop, LookML thelook, NULL trap demo.
-- **2026-03-13 (PM):** MCP integration testing session 1 — 6 bugs found and fixed:
-  - boyce-init config path, ingest_source description, snapshot hash recomputation, builder COUNT field
-    resolution, builder GROUP BY field resolution, ORDER BY/LIMIT guidance.
-  - 3 queries tested successfully (Mode A): supplier product counts, top-5 expensive products, cross-entity WHERE filters.
-- **2026-03-13 (AM):** Architectural overhaul (CEO/Opus directive, 10 changes):
-  - ask_boyce tri-modal (Mode A/B/C), validate_sql new tool, build_sql/solve_path internalized (7-tool surface),
-  - StructuredFilter docs updated with examples, intent classifier removed, boyce-init expands to 6 platforms,
-  - Schema freshness Tier 2 (mtime check + auto re-ingest) + Tier 3 (live DB drift detection),
-  - Source path tracking in parsers. 289 tests green.
-- **2026-03-11:** VS Code extension scaffold — `extension/` directory, 11 files, 1,424 LOC TypeScript, compiles clean. Deprioritized same day (VS Code native MCP is the path).
-- **2026-03-11:** Full repo audit — deleted stale docs, fixed stale references, `legacy_v0/` deleted, semantic review complete
-- **2026-03-07:** `src` layout migration — `boyce/boyce/` → `boyce/src/boyce/`; CWD namespace conflict eliminated; 260 tests green
-- **2026-03-07:** Client reference strip (Phases 1-3) + git history squash — repo is clean, pre-commit hook active
-- **2026-03-06:** Delivery surface expansion — `get_schema`, `build_sql`, `boyce-init`, Direct CLI, HTTP API (52 new tests)
-- **2026-03-05:** Full codebase rename to `boyce` (package, module, env vars, MCP tools, docs, CI)
-- **2026-03-04:** Name confirmed as Boyce. Domain `boyce.io` purchased.
-- **2026-03-01:** Scan CLI (`boyce-scan`) implemented — 10 tests
-- **2026-03-01:** All 10 parsers operational with 177 parser tests
-- **2026-02-28:** Legacy code quarantined, CI/CD rewritten, docs aligned
+### Testing Sprint Summary (Block 1 Phase B)
+- **7 testing sessions** (March 9-16): 24 bugs found and fixed
+- **Opus refactor** (pre-Battery 6): extracted `_resolve_field_ref()`, eliminated root cause of 5 builder bugs, net -94 lines
+- **All gates passed:** Claude Code (6 consecutive clean passes), live DB round-trip (Pagila), clean venv install, NULL trap demo
+- **Remaining gate:** Cursor cross-platform test (last must-have before version decision)
+- **316 tests, 20 CLI smoke checks, all green**
+- Full session-by-session log: `_strategy/history/testing-sprint-log.md`
 
 ### Key files
 | File | Role |

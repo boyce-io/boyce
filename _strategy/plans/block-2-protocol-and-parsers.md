@@ -91,7 +91,7 @@ toolchain can generate a SemanticSnapshot in under 5 minutes.
 - Cursor model: **Sonnet 4.6** (straightforward, pandas/pyarrow)
 
 ### Step 10: Auto-Discovery CLI (`scan` command)
-- New CLI entry point: `[name] scan <directory>`
+- New CLI entry point: `boyce scan <directory>`
 - Walks the directory tree, runs each parser's `detect()` method
 - Presents discovered sources, asks for confirmation or runs automatically
 - Merges all discovered sources into a unified SemanticSnapshot
@@ -100,7 +100,7 @@ toolchain can generate a SemanticSnapshot in under 5 minutes.
 - Cursor model: **Opus 4.6** (cross-module integration, conflict resolution logic)
 
 ### Step 11: Standalone dbt→Snapshot Converter CLI
-- `[name] convert manifest.json > snapshot.json`
+- `boyce convert manifest.json > snapshot.json`
 - Simple wrapper around existing parser, but standalone (no MCP server needed)
 - Useful for CI/CD pipelines, pre-computation, sharing snapshots
 - Cursor model: **Sonnet 4.6** (thin wrapper)
@@ -141,11 +141,11 @@ toolchain can generate a SemanticSnapshot in under 5 minutes.
 - [ ] Parser plugin interface defined and documented
 - [ ] All existing parsers refactored to implement the interface
 - [ ] At least 8 new parsers implemented and tested (DDL, SQLite, Django, SQLAlchemy, Prisma, SQLMesh, Alembic, CSV/Parquet)
-- [ ] `[name] scan ./` auto-discovers and parses sources from a mixed-format project
-- [ ] `[name] convert` produces standalone snapshot files
+- [ ] `boyce scan ./` auto-discovers and parses sources from a mixed-format project
+- [ ] `boyce convert` produces standalone snapshot files
 - [ ] SemanticSnapshot spec published as standalone document with JSON Schema
 - [ ] StructuredFilter spec published alongside
-- [ ] Cold-start to useful snapshot in under 2 minutes on a clean machine (`pip install [name] && [name] scan ./`)
+- [ ] Cold-start to useful snapshot in under 2 minutes on a clean machine (`pip install boyce && boyce scan ./`)
 - [ ] Every parser validated against at least one real-world fixture from `test_warehouses/`
 - [ ] Fixture gap analysis complete — synthetic fixtures created for parsers with no external repo
 - [ ] Comprehensive fixture refresh complete — each parser type evaluated against best available open-source projects

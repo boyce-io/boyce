@@ -50,7 +50,7 @@ SQL. Zero configuration beyond `pip install boyce`.
 **7 MCP tools:** `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce`, `validate_sql`, `query_database`, `profile_data`
 
 **10 source parsers:** dbt manifest, dbt project, LookML, raw DDL, SQLite, Django, SQLAlchemy,
-Prisma, CSV, Parquet — auto-detected via `boyce-scan`
+Prisma, CSV, Parquet — auto-detected via `boyce scan`
 
 **Dialect support:** Redshift, Postgres, DuckDB, BigQuery
 

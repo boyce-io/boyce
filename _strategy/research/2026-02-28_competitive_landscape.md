@@ -2,6 +2,10 @@
 **Date:** 2026-02-28
 **Purpose:** Strategic product planning for Boyce
 
+> **Reference document.** This research informed the competitive positioning in MASTER.md.
+> CC instances: do not load this file unless explicitly working on competitive strategy
+> or market positioning. The actionable summary is in MASTER.md under "Competitive Position."
+
 ---
 
 ## 1. Boris Cherny's "Bitter Lesson" and "Ship of Theseus" Philosophy

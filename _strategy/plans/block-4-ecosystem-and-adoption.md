@@ -41,7 +41,7 @@ that's what they're doing (via `scan` CLI).
   separating LLM intent from SQL generation
 - Essay 3: "The SemanticSnapshot Standard" — introducing the protocol spec,
   why it matters, how to adopt it
-- Essay 4: "Building a Parser for [PRODUCT_NAME]" — community contribution guide,
+- Essay 4: "Building a Parser for Boyce" — community contribution guide,
   doubles as a tutorial
 - Each essay includes working code examples
 - Executor: Will writes; Claude Code reviews technical accuracy
@@ -81,7 +81,7 @@ governance features are the product. These survive regardless of how capable
 models become at SQL generation.
 
 ## Note on Protocol Bootstrapping
-Every run of `[product] scan ./` produces a SemanticSnapshot. Every user who runs
+Every run of `boyce scan ./` produces a SemanticSnapshot. Every user who runs
 the scan CLI is an "adopter" of the format — even if they never think of themselves
 that way. The scan CLI is the sneaky bootstrapping mechanism for protocol adoption.
 External producers emerge organically from utility, not from outreach.
