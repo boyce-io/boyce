@@ -50,7 +50,7 @@ After installing, run `boyce init` to configure your MCP host automatically:
 boyce init
 ```
 
-The wizard detects Claude Desktop, Cursor, and Claude Code, and writes the correct config block for each.
+The wizard detects Claude Desktop, Cursor, Claude Code, and JetBrains (DataGrip, IntelliJ, etc.), and writes the correct config block for each.
 
 **Developing from source?** The repo includes a setup script:
 
@@ -74,10 +74,10 @@ Or configure manually. **There are two setup paths depending on your host:**
 
 ### Path 1 — MCP Hosts (No LLM key required)
 
-If you're using **Claude Desktop, Cursor, Claude Code, Cline, Windsurf, or any MCP-compatible
-host**, you do not need to configure an LLM provider for Boyce. The host's own model handles
-reasoning — Boyce supplies the schema context and deterministic SQL compiler via `get_schema`
-and `build_sql`. Only `BOYCE_DB_URL` is needed (and even that is optional).
+If you're using **Claude Desktop, Cursor, Claude Code, Codex, Cline, Windsurf, JetBrains (DataGrip,
+IntelliJ), or any MCP-compatible host**, you do not need to configure an LLM provider for Boyce.
+The host's own model handles reasoning — Boyce supplies the schema context and deterministic SQL
+compiler via `get_schema` and `ask_boyce`. Only `BOYCE_DB_URL` is needed (and even that is optional).
 
 **Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
@@ -163,9 +163,8 @@ generation still works; EXPLAIN pre-flight and live query tools return `"status"
 | `ingest_source` | Parse a `SemanticSnapshot` from dbt manifest, dbt project, LookML, DDL, SQLite, Django, SQLAlchemy, Prisma, CSV, or Parquet. |
 | `ingest_definition` | Store a certified business definition — injected automatically at query time. |
 | `get_schema` | Return full schema context + StructuredFilter format docs. Used by MCP hosts so the host LLM can construct queries without a Boyce API key. |
-| `build_sql` | Compile a StructuredFilter to SQL — deterministic, no LLM call inside Boyce. The host LLM provides the filter; Boyce compiles it. |
-| `solve_path` | Find the optimal join path between two entities via Dijkstra — returns SQL fragment and confidence score. |
 | `ask_boyce` | Full NL → SQL pipeline: query planner (LiteLLM) → deterministic kernel → NULL trap check → EXPLAIN pre-flight. |
+| `validate_sql` | Validate hand-written SQL — EXPLAIN pre-flight, Redshift lint, NULL risk — without executing. |
 | `query_database` | Execute a read-only `SELECT` against the live database. Write operations rejected at two independent layers. |
 | `profile_data` | Null %, distinct count, min/max for any column — surface data quality issues before they affect query results. |
 
@@ -183,7 +182,7 @@ SemanticSnapshot (JSON)
  │  edges = joins  (weighted by confidence)    │
  └─────────────────────────────────────────────┘
         │                         │
-        ▼  ask_boyce              ▼  solve_path
+        ▼  ask_boyce              ▼  (internal)
   QueryPlanner                 Dijkstra
   (LiteLLM)                    join resolver
   NL → StructuredFilter             │
