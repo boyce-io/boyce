@@ -346,47 +346,61 @@ CEO Directive fully satisfied.
 - [ ] Close gaps from Wed-Thu / retest if needed
 - [ ] Begin Phase C if published Thursday
 
-#### Phase C — Amplification [AFTER PUBLISH]
-- [ ] MCP directory submissions (Smithery, PulseMCP, mcp.so, Glama)
-- [ ] Integration guides published as public docs
-- [ ] Local LLM setup guide (Ollama/vLLM via LiteLLM)
-- [ ] Content: Story 1 (adoption/IC) — clean README, 30-second demo
-- [ ] Content: Story 2 (trust/C-suite) — Null Trap technical essay
-- [ ] **VS Code extension** — thin TypeScript GUI over HTTP API, marketplace publish (Block 1b)
-- [ ] **With/without Boyce comparison table** — concise table for README + boyce.io showing what changes when Boyce is present (determinism, safety layer, NULL trap, audit) vs. raw agent SQL generation. Positioned near top of both surfaces. See conversation 2026-03-13 for the mental model to encode.
+#### Phase C — Post-Publish Sprint [AFTER PYPI PUBLISH]
 
-**COMPLETE — Support Readiness (2026-03-11)**
+Sequenced in dependency order. Each stage gates the next.
 
-Pre-publish support infrastructure in place:
-- `.github/ISSUE_TEMPLATE/bug_report.yml` — structured bug report form
-- `.github/ISSUE_TEMPLATE/feature_request.yml` — feature request form
-- `.github/ISSUE_TEMPLATE/setup_help.yml` — setup/connection troubleshooting form
-- `.github/ISSUE_TEMPLATE/config.yml` — links to FAQ and support email
-- `docs/troubleshooting.md` — comprehensive FAQ covering install, boyce init, MCP setup,
-  snapshot issues, NL→SQL, DB connection, HTTP API
-- `README.md` — Support section added, links to issue templates and FAQ
+**Stage 1 — Distribution (CEO, day of publish, no engineering)**
+- [ ] MCP directory submissions: Smithery, PulseMCP, mcp.so, Glama
+      (content pre-drafted in `_strategy/mcp-directory-submissions.md`)
+- [ ] JetBrains ACP Registry submission (same canonical content, ACP format)
+- [ ] Announce on GitHub (release notes, tag)
 
-**COMPLETE (2026-03-13):** All will@boyce.io references replaced with will@convergentmethods.com
-in issue templates, README, and docs. Swap back to will@boyce.io once domain DNS is configured.
+**Stage 2 — Agent SEO Baseline (CEO, first 48h, no engineering)**
+- [ ] Run baseline queries across Claude, GPT, Gemini:
+      "Best MCP server for database queries"
+      "Safe SQL generation for AI agents"
+      "Database MCP server with NULL detection"
+- [ ] Document what returns, where Boyce appears (or doesn't), what competitors surface
+- [ ] Store results in `_strategy/research/agent-seo-baseline.md`
+- [ ] Identify optimization levers (PyPI description, README structure, external mentions)
 
-**Gate:** Will has personally tested all surfaces. `pip install boyce` works in a clean env. Real queries produce correct results. Version decision made by Will on Thursday March 12.
+**Stage 3 — Content Review Pass (CEO, days 2-3 post-publish)**
+- [ ] Review all 8 public surfaces for accuracy and consistency:
+      PyPI page, convergentmethods.com, convergentmethods.com/boyce/,
+      /boyce/null-trap/, /boyce/docs/, GitHub boyce-io/boyce README,
+      GitHub ConvergentMethods org, llms.txt + llms-full.txt
+- [ ] Verify DataGrip, Codex, and all v0.1 platforms are named on integration pages
+- [ ] Verify `boyce init` / `boyce scan` subcommand convention is consistent everywhere
+- [ ] Verify Null Trap essay is linked from README
 
-#### Block 1b — VS Code Extension
-See `_strategy/plans/block-1b-vscode-extension.md` for detailed plan.
+**Stage 4 — Telemetry Hooks (CC, week 1 post-publish)**
+- [ ] Instrument telemetry call sites in server.py (tool invocations, error classes, platform ID)
+- [ ] All hooks are no-ops — `BOYCE_TELEMETRY` env var, default `off`
+- [ ] No data collection, no backend, no privacy policy needed yet
+- [ ] Document full telemetry intent in `_strategy/plans/telemetry-design.md`
+- [ ] Plan doc: `_strategy/plans/telemetry-design.md`
 
-The HTTP API (`boyce serve --http`) was built specifically to unlock this. The extension is a
-thin TypeScript wrapper — chat panel, schema tree, query runner — calling Boyce's HTTP
-endpoints. All LLM and SQL logic stays inside Boyce. The extension never touches credentials
-or models directly.
+**Stage 5 — Platform Expansion (CC, weeks 1-2 post-publish)**
+- [ ] Add Codex config.toml support to `boyce init` wizard
+- [ ] Elevate DataGrip to prominently named platform across all docs, website, README
+- [ ] Add dedicated DataGrip and Codex sections to integration guides
+- [ ] Update convergentmethods.com/boyce/docs/ with new platform pages
 
-**First monetization vehicle.** Core library stays MIT forever. The extension ships free on
-the VS Code Marketplace, with a pro tier (visual schema explorer, team sharing, unlimited
-history) added later once organic demand is established. Same pattern as Docker, Terraform,
-Grafana: engine free, experience layer paid.
+**Stage 6 — Test Warehouse Infrastructure (CC, weeks 2-3 post-publish)**
+- [ ] Build Tier 2 test warehouse (messy/medium: NULLs, naming collisions, type drift, stale data)
+- [ ] ~50-200 tables, realistic schema problems that trigger NULL traps and edge cases
+- [ ] Setup script (not committed data) — `test_warehouses/tier2/setup.sh`
+- [ ] Docker Compose for Tier 2 alongside existing Pagila Tier 1
+- [ ] Plan doc: `_strategy/plans/test-warehouse-tiers.md`
 
-Legacy reference implementation (schema tree, SQL editor, completions, query console) was
-used as reference for the scaffold and is preserved in git history.
-The `extension/` scaffold (built 2026-03-11) replaces it with HTTP API calls.
+**Stage 7 — Benchmark Program (CC, weeks 3-4 post-publish)**
+- [ ] Define ground-truth query set (20-50 queries against Tier 2 warehouse)
+- [ ] Build benchmark harness — plug-and-play per platform (add config, not code)
+- [ ] Metrics: SQL accuracy, token consumption, error rate, NULL trap detection rate
+- [ ] Run first battery: Claude Code, Cursor, Codex (minimum)
+- [ ] "With Boyce / Without Boyce" comparison table for README + product page + PyPI
+- [ ] Plan doc: `_strategy/plans/benchmark-program.md`
 
 ### Block 2 — Protocol & Parsers (Days 11-25)
 **Goal:** SemanticSnapshot spec published standalone. Remaining parsers. Spec documentation.
@@ -527,6 +541,23 @@ when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension
 | `boyce/tests/test_scan.py` | Scan CLI tests (10 tests) |
 | `boyce/tests/test_cli_smoke.py` | 17 CLI smoke checks (entry points, hangs, exit codes) |
 | `_strategy/MASTER.md` | **This file** |
+
+### Platform Compatibility Matrix (v0.1 targets)
+
+| Platform | MCP Config | `boyce init` support | Status |
+|----------|-----------|---------------------|--------|
+| Claude Code | `.claude/settings.json` | Yes | Tested, passing |
+| Cursor | `.cursor/mcp.json` | Yes | Gate pending |
+| VS Code | `.vscode/mcp.json` | Yes | Native MCP, untested |
+| Codex (OpenAI) | `~/.codex/config.toml` | Not yet | v0.1 target — add post-publish |
+| DataGrip / JetBrains | AI Assistant → MCP settings | Yes (generic) | First-class post-publish (Stage 5) |
+| JetBrains ACP Registry | Registry submission | N/A | Phase C Stage 1 submission |
+| Windsurf | `~/.codeium/` | Yes | Untested |
+| Cline | VS Code MCP | Yes | Tested via Claude Code session |
+| Continue.dev | VS Code MCP | Yes | Tested via Claude Code session |
+
+**v0.1 mandatory test matrix:** Claude Code (done), Cursor (gate), VS Code, Codex.
+**v0.2 elevation:** DataGrip as prominently named first-class platform across all surfaces.
 
 ---
 
