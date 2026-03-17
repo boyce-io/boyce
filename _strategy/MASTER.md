@@ -355,6 +355,13 @@ Sequenced in dependency order. Each stage gates the next.
 - [ ] Identify optimization levers (PyPI description, README structure, external mentions)
 
 **Stage 3 — Content Review Pass (CEO, days 2-3 post-publish)**
+
+**Pre-publish sweep (2026-03-17):** Automated consistency audit completed across all 8 surfaces.
+Fixes applied: CLI convention (boyce init/scan), tool count (7 not 8), build_sql/solve_path
+references removed, DataGrip + Codex added to all platform lists, support email verified.
+Commits: `e709847` (README), `7e94110` (llms.txt), `79654d7` (sites), `6e3eab2` (gitignore + pyproject + support).
+Stage 3 at publish: verify version numbers are consistent (only thing not checkable pre-publish).
+
 - [ ] Review all 8 public surfaces for accuracy and consistency:
       PyPI page, convergentmethods.com, convergentmethods.com/boyce/,
       /boyce/null-trap/, /boyce/docs/, GitHub boyce-io/boyce README,
