@@ -10,7 +10,6 @@ No external dependencies — stdlib only.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -289,7 +288,7 @@ def _check_project_root(dir_path: Path) -> Optional[DiscoveredSource]:
     if len(sql_files) >= 2:
         create_count = sum(
             1 for f in sql_files
-            if _file_contains(f, ("CREATE TABLE", "create table", "CREATE TABLE"))
+            if _file_contains(f, ("CREATE TABLE", "create table"))
         )
         if create_count >= 1:
             confidence = 0.8 if len(sql_files) >= 5 else 0.7
@@ -329,12 +328,16 @@ def _make_source(
 
 
 def _json_has_keys(file_path: Path, required_keys: Set[str]) -> bool:
-    """Check if a JSON file has all required top-level keys (fast — reads first 4 KB)."""
+    """Check if a JSON file has all required top-level keys.
+
+    Uses string matching on the first 4 KB rather than JSON parsing,
+    because large files (e.g. dbt manifests, 50-500 KB) would fail
+    json.loads() on a truncated read.
+    """
     try:
         with open(file_path, encoding="utf-8") as fh:
             text = fh.read(4096)
-        data = json.loads(text)
-        return isinstance(data, dict) and required_keys.issubset(data.keys())
+        return all(f'"{key}"' in text for key in required_keys)
     except Exception:
         return False
 

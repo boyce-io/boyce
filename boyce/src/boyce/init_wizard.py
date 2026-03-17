@@ -466,7 +466,7 @@ def _step_editors(hosts: List[MCPHost]) -> List[MCPHost]:
     labels: List[str] = []
     for h in ordered:
         if h.has_boyce:
-            label = f"{h.name}  (already configured)"
+            label = f"{h.name}  (configured — select to update)"
         elif h.exists:
             label = f"{h.name}  (detected)"
         else:
@@ -558,8 +558,10 @@ def _test_db_connection(dsn: str) -> Tuple[bool, str]:
 
 
 def _dsn_from_fields(host: str, port: str, db: str, user: str, password: str) -> str:
-    safe_pass = password.replace("@", "%40").replace(":", "%3A")
-    return f"postgresql://{user}:{safe_pass}@{host}:{port}/{db}"
+    from urllib.parse import quote  # noqa: PLC0415
+    safe_user = quote(user, safe="")
+    safe_pass = quote(password, safe="")
+    return f"postgresql://{safe_user}:{safe_pass}@{host}:{port}/{db}"
 
 
 def _collect_one_database() -> Optional[Tuple[str, str]]:
@@ -753,8 +755,11 @@ def _run_manual_add() -> List[Tuple[str, str]]:
         print(f"  Scanning {name}...", end=" ", flush=True)
 
         try:
-            # Create a minimal DiscoveredSource for manual paths
-            dummy = DiscoveredSource(
+            from .discovery import _check_project_root  # noqa: PLC0415
+
+            # Detect the parser type for accurate descriptions
+            detected = _check_project_root(path) if path.is_dir() else None
+            source = detected or DiscoveredSource(
                 path=path,
                 parser_type="unknown",
                 label="",
@@ -762,7 +767,7 @@ def _run_manual_add() -> List[Tuple[str, str]]:
                 is_git_repo=False,
                 pre_selected=True,
             )
-            desc = ingest_source(dummy, name=name)
+            desc = ingest_source(source, name=name)
             print(f"✓ {desc}")
             print(f"  Saved as \"{name}\"")
             results.append((name, desc))
@@ -837,10 +842,8 @@ def _print_summary(
         print(f"\n  Editors:    {editor_names} ✓")
 
     if db_entries:
-        db_display = "  ".join(
-            f"{name} ({_table_count_from_dsn(dsn)})" for name, dsn in db_entries
-        )
-        print(f"  Databases:  {db_display}")
+        db_display = "  ".join(name for name, _ in db_entries)
+        print(f"  Databases:  {db_display} ✓")
 
     if source_entries:
         src_display = "  ".join(f"{name} ({desc})" for name, desc in source_entries)
@@ -854,14 +857,6 @@ def _print_summary(
         print("\n  Run boyce-init again to configure an editor.")
 
     print()
-
-
-def _table_count_from_dsn(dsn: str) -> str:
-    """Return table count string from a previously-tested DSN, or empty."""
-    # We already tested this connection — parse the table count from the test
-    # result is not stored, so just return a generic label
-    parsed = urlparse(dsn)
-    return (parsed.path or "").lstrip("/") or "connected"
 
 
 # ---------------------------------------------------------------------------
