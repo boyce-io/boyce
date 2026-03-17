@@ -1,6 +1,6 @@
 # Boyce — Master Directive
 **This is the single source of truth for planning and execution.**
-**Last updated:** 2026-03-13
+**Last updated:** 2026-03-17
 **All other planning documents are subordinate to this file.**
 **Product name:** Boyce — named for [Raymond F. Boyce](https://en.wikipedia.org/wiki/Raymond_F._Boyce), co-inventor of SQL (1974)
 **Domain:** boyce.io (purchased 2026-03-04)
@@ -333,18 +333,7 @@ No artist/label/track schemas, no video streaming context, no advertising/ad del
 references, no music industry terminology anywhere in active code or docs.
 CEO Directive fully satisfied.
 
-*Wed March 11 (Will — full day):*
-- [ ] Integration test: `boyce init` + MCP connection across all hosts
-- [ ] Query battery: full run across all working surfaces (fixes applied live)
-
-*Thu March 12 (Will — full day):*
-- [ ] Retest fixes from Wednesday
-- [ ] Version decision (v1.0 or iterate)
-- [ ] PyPI publish (Will executes — credentials required) — if version decision is go
-
-*Fri March 13 (Will — flex):*
-- [ ] Close gaps from Wed-Thu / retest if needed
-- [ ] Begin Phase C if published Thursday
+*Daily testing schedule executed March 11-14. Results in testing sprint summary below.*
 
 #### Phase C — Post-Publish Sprint [AFTER PYPI PUBLISH]
 
@@ -442,7 +431,7 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 - [ ] Airflow DAG parser
 - [ ] Technical content series beyond the Null Trap (3 essays)
 - [ ] Adoption outreach — StructuredFilter as IR for other NL-to-SQL tools
-- [ ] **Benchmark program** — batch comparison of Boyce vs. no-Boyce SQL generation across delivery platforms (Claude Code, Cursor, Windsurf at minimum). Metrics: SQL accuracy (human-graded or ground-truth compared), token consumption per query, error rate. Produces publishable evidence for the with/without comparison table. Needs its own planning doc when sequenced. (See conversation 2026-03-13 for scope.)
+- [ ] **Benchmark program** — Pulled forward to Phase C Stage 7. See `_strategy/plans/benchmark-program.md`.
 
 **Gate:** At least one external tool produces or consumes SemanticSnapshot. 2+ essays published.
 
