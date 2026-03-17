@@ -376,10 +376,12 @@ def test_merge_config_jetbrains_uses_mcpservers(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_command_returns_boyce_when_on_path():
+def test_resolve_command_returns_full_path_when_on_path():
+    """_resolve_boyce_command returns the full resolved path (not bare 'boyce')
+    so that editor configs work without the user's venv being activated."""
     with patch("shutil.which", return_value="/usr/local/bin/boyce"):
         cmd = _resolve_boyce_command()
-    assert cmd == "boyce"
+    assert cmd == "/usr/local/bin/boyce"
 
 
 def test_resolve_command_falls_back_to_venv_bin(tmp_path):
