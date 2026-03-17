@@ -5,7 +5,7 @@ Detects editors with MCP support, configures the boyce server entry, tests
 database connections, and auto-discovers data sources.
 
 Usage:
-    boyce-init
+    boyce init
     python -m boyce.init_wizard
 
 Optional dependency:
@@ -57,16 +57,22 @@ def _ensure_questionary() -> bool:
         return False
 
     print("  Installing...", end=" ", flush=True)
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "questionary", "--quiet"],
-            capture_output=True,
-            timeout=60,
-        )
-    except (subprocess.TimeoutExpired, OSError):
-        result = None  # type: ignore[assignment]
 
-    if result and result.returncode == 0:
+    # Try uv first (uv tool venvs don't include pip), fall back to pip
+    installed = False
+    for cmd in [
+        ["uv", "pip", "install", "--quiet", "--python", sys.executable, "questionary"],
+        [sys.executable, "-m", "pip", "install", "questionary", "--quiet"],
+    ]:
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=60)
+            if result.returncode == 0:
+                installed = True
+                break
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            continue
+
+    if installed:
         import importlib
         importlib.invalidate_caches()
         try:
@@ -857,7 +863,7 @@ def _print_summary(
         print('    "Use boyce to show me the database schema"')
         print('    "What tables have revenue data?"')
     else:
-        print("\n  Run boyce-init again to configure an editor.")
+        print("\n  Run boyce init again to configure an editor.")
 
     print()
 
@@ -874,7 +880,7 @@ def run_wizard() -> int:
     """
     # Require an interactive terminal — questionary and input() both need one
     if not sys.stdin.isatty():
-        print("boyce-init requires an interactive terminal.")
+        print("boyce init requires an interactive terminal.")
         print("Run this command directly in your terminal, not as a subprocess.")
         return 1
 
@@ -898,7 +904,7 @@ def _run_wizard_interactive() -> int:
     selected_editors = _step_editors(hosts)
     if not selected_editors:
         print("\n  No editors selected — nothing to configure.")
-        print("  Run boyce-init again and select an editor to get started.\n")
+        print("  Run boyce init again and select an editor to get started.\n")
         return 0
 
     # Step 2 — Database
