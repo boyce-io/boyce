@@ -45,9 +45,9 @@ uv pip install boyce
 
 ---
 
-## boyce-init
+## boyce init
 
-### `boyce-init` can't find my MCP host config
+### `boyce init` can't find my MCP host config
 
 The wizard looks for config files at standard paths. If it doesn't detect your host automatically,
 configure manually using the snippets in the [README](../README.md#configure-your-mcp-host).
@@ -62,7 +62,7 @@ Common config locations:
 | Claude Code | `.claude/settings.json` in your project root |
 | Cline / Continue.dev | VSCode settings or `.vscode/mcp.json` |
 
-### `boyce-init` wrote a config but the MCP host still doesn't connect
+### `boyce init` wrote a config but the MCP host still doesn't connect
 
 1. **Restart the host completely** — most MCP hosts only read config on startup.
 2. **Check the path** — verify the config file is in the right location for your OS.
@@ -90,7 +90,7 @@ ingest_source(path="/path/to/your/target/manifest.json")
 Or use the scan CLI to auto-detect sources in a project directory:
 
 ```bash
-boyce-scan ./my-project/ --save
+boyce scan ./my-project/ --save
 ```
 
 ### Snapshots disappear after restarting the server
@@ -106,7 +106,7 @@ absolute path (planned feature — track [#issue](https://github.com/boyce-io/bo
 Check which parser is being used:
 
 ```bash
-boyce-scan /path/to/file -v   # shows detected format
+boyce scan /path/to/file -v   # shows detected format
 ```
 
 If the format is wrong, specify it explicitly in `ingest_source`:

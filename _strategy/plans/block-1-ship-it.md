@@ -1,7 +1,7 @@
 # Plan: Block 1 — Ship It
-**Status:** Active — Phase A complete, Phase B in progress
+**Status:** Active — Phase A complete, Phase B in progress (wizard overhaul + discovery complete, platform tests next)
 **Created:** 2026-02-28
-**Updated:** 2026-03-13
+**Updated:** 2026-03-16
 **Depends on:** Block 0 (naming) — COMPLETE
 
 ## Goal
@@ -22,7 +22,7 @@ All engineering work done. No open items.
 - [x] Secure namespace (PyPI 0.0.1 placeholder, GitHub org `boyce-io`, domain `boyce.io`)
 - [x] 7 MCP tools: `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce` (tri-modal Mode A/B/C), `validate_sql`, `query_database`, `profile_data`
   - `build_sql` and `solve_path` internalized (not MCP tools; host LLM constructs StructuredFilter and calls `ask_boyce` Mode A)
-- [x] `boyce-init` setup wizard (auto-detects and configures **6 platforms**: Claude Desktop, Cursor, Claude Code, VS Code, JetBrains/DataGrip, Windsurf)
+- [x] `boyce init` setup wizard (3-step interactive: editors → DB → data sources; 6 platforms; questionary + fallback)
 - [x] Direct CLI (`boyce ask "..."` and `boyce chat "..."`)
 - [x] HTTP API (`boyce serve --http`, Starlette + Bearer auth, `/chat` intent routing)
 - [x] Public API exports (`from boyce import process_request, SemanticSnapshot, lint_redshift_compat, SemanticGraph`)

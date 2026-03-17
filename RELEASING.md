@@ -74,7 +74,7 @@ Work through the table in `ASSETS.md`. For each surface:
 
 - [ ] `pip install boyce==X.Y.Z` succeeds in a clean environment
 - [ ] MCP server starts: `boyce` (no args)
-- [ ] `boyce-init` runs without error
+- [ ] `boyce init` runs without error
 - [ ] Product page renders correct version
 - [ ] `llms.txt` and `llms-full.txt` reflect new version
 

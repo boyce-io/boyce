@@ -44,10 +44,10 @@ uv pip install -e "boyce/"
 
 ## Quickstart
 
-After installing, run `boyce-init` to configure your MCP host automatically:
+After installing, run `boyce init` to configure your MCP host automatically:
 
 ```bash
-boyce-init
+boyce init
 ```
 
 The wizard detects Claude Desktop, Cursor, and Claude Code, and writes the correct config block for each.
@@ -62,10 +62,10 @@ The wizard detects Claude Desktop, Cursor, and Claude Code, and writes the corre
 
 ## Configure Your MCP Host
 
-The fastest path is `boyce-init` — it detects your MCP host and writes the config automatically:
+The fastest path is `boyce init` — it detects your MCP host and writes the config automatically:
 
 ```bash
-boyce-init
+boyce init
 ```
 
 Or configure manually. **There are two setup paths depending on your host:**
@@ -211,13 +211,13 @@ SemanticSnapshot (JSON)
 
 ```bash
 # Scan a single file
-boyce-scan demo/magic_moment/manifest.json
+boyce scan demo/magic_moment/manifest.json
 
 # Scan a directory (auto-detects all parseable sources)
-boyce-scan ./my-project/ -v
+boyce scan ./my-project/ -v
 
 # Save snapshots for MCP server use
-boyce-scan ./my-project/ --save
+boyce scan ./my-project/ --save
 ```
 
 10 parsers: dbt manifest, dbt project, LookML, SQLite, DDL, CSV, Parquet, Django, SQLAlchemy, Prisma.
@@ -281,7 +281,7 @@ boyce/                          ← PRIMARY — headless FastMCP server + pip pa
 │   ├── graph.py                ← SemanticGraph (NetworkX)
 │   ├── safety.py               ← Redshift compatibility rails
 │   ├── types.py                ← Protocol contract (Pydantic)
-│   ├── scan.py                 ← Scan CLI (boyce-scan)
+│   ├── scan.py                 ← Scan CLI (boyce scan)
 │   ├── sql/                    ← SQLBuilder, dialect layer, join resolver
 │   ├── parsers/                ← 10 parsers (dbt, lookml, ddl, sqlite, csv, etc.)
 │   ├── planner/                ← QueryPlanner (LiteLLM → StructuredFilter)
@@ -303,7 +303,7 @@ _management_documents/          ← Architecture docs and decision records
 | NL → SQL (deterministic kernel) | Operational |
 | SemanticGraph (join resolution) | Operational |
 | 10 source parsers | Operational |
-| Scan CLI (`boyce-scan`) | Operational |
+| Scan CLI (`boyce scan`) | Operational |
 | PostgresAdapter (read-only) | Operational |
 | EXPLAIN pre-flight validation | Operational |
 | NULL Trap detection | Operational |

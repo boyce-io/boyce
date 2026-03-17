@@ -96,7 +96,7 @@ Boyce has two delivery paths, and they use LLMs completely differently:
 
 | Path | Who has the LLM? | What Boyce needs | User configures |
 |------|------------------|-----------------|-----------------|
-| **MCP hosts** (Claude Code, Cursor, Claude Desktop, VS Code, JetBrains, Windsurf) | The host has it | Nothing — host LLM calls `get_schema`, constructs a StructuredFilter, calls `ask_boyce` | Just `boyce-init` (no API key) |
+| **MCP hosts** (Claude Code, Cursor, Claude Desktop, VS Code, JetBrains, Windsurf) | The host has it | Nothing — host LLM calls `get_schema`, constructs a StructuredFilter, calls `ask_boyce` | Just `boyce init` (no API key) |
 | **Non-MCP clients** (CLI `ask`/`chat`, HTTP API) | Nobody | Boyce uses its internal planner (NL path in `ask_boyce`) | `BOYCE_PROVIDER` + `BOYCE_MODEL` + API key |
 
 **If you use an MCP host, you do not need to configure any LLM provider or API key for Boyce.**
@@ -190,11 +190,11 @@ user has and producing a SemanticSnapshot from it.
 
 ### Auto-Discovery CLI (Operational)
 ```bash
-boyce-scan ./my-project/
+boyce scan ./my-project/
 # Scans all files, auto-detects parseable sources, produces JSON report
-boyce-scan ./my-project/ -v          # per-file progress to stderr
-boyce-scan ./my-project/ --save      # persist snapshots to _local_context/
-boyce-scan ./my-project/ | jq '.'    # stdout is clean JSON, pipeable
+boyce scan ./my-project/ -v          # per-file progress to stderr
+boyce scan ./my-project/ --save      # persist snapshots to _local_context/
+boyce scan ./my-project/ | jq '.'    # stdout is clean JSON, pipeable
 ```
 
 Project-scoped (trustworthy), automatic (frictionless), comprehensive (catches everything).
@@ -229,7 +229,7 @@ Build core parsers in-house. Let community contribute the rest. Same pattern as 
 (Microsoft built the protocol + reference implementations; community built 150+ language servers).
 
 ### Protocol Bootstrapping via scan CLI
-Every run of `boyce-scan ./` produces a SemanticSnapshot. Every user who runs
+Every run of `boyce scan ./` produces a SemanticSnapshot. Every user who runs
 the scan CLI is a producer of the format — even if they never think of themselves as
 "adopting a standard." External producers emerge organically from utility, not from outreach.
 The scan CLI is the sneaky bootstrapping mechanism for protocol adoption.
@@ -293,13 +293,13 @@ See `_strategy/plans/block-1-ship-it.md` for detailed plan.
 - [x] Rename codebase (package, imports, CLI, pyproject.toml, docs)
 - [x] Secure namespace (PyPI placeholder, GitHub org, domain)
 - [x] `get_schema` + `build_sql` MCP tools (host-LLM path — no Boyce LLM needed)
-- [x] `boyce-init` setup wizard (Claude Desktop, Cursor, Claude Code auto-config)
+- [x] `boyce init` setup wizard (6 platforms: Claude Desktop, Cursor, Claude Code, VS Code, JetBrains, Windsurf)
 - [x] Direct CLI (`boyce ask "..."` and `boyce chat "..."`)
 - [x] HTTP API mode (`boyce serve --http`, Starlette + Bearer auth, `/chat` endpoint)
 - [x] Public API exports (`from boyce import process_request, SemanticSnapshot`)
 - [x] `src` layout migration (namespace conflict eliminated)
 - [x] Client reference strip + pre-commit hook (repo is clean)
-- [x] 260 tests passing, ~10s, zero external dependencies
+- [x] 316 tests passing, ~10s, zero external dependencies
 
 #### Phase B — Testing Sprint [ACTIVE — week of March 9]
 **Hard requirement: Will personally tests before anything is published or submitted.**
@@ -334,7 +334,7 @@ references, no music industry terminology anywhere in active code or docs.
 CEO Directive fully satisfied.
 
 *Wed March 11 (Will — full day):*
-- [ ] Integration test: `boyce-init` + MCP connection across all hosts
+- [ ] Integration test: `boyce init` + MCP connection across all hosts
 - [ ] Query battery: full run across all working surfaces (fixes applied live)
 
 *Thu March 12 (Will — full day):*
@@ -362,7 +362,7 @@ Pre-publish support infrastructure in place:
 - `.github/ISSUE_TEMPLATE/feature_request.yml` — feature request form
 - `.github/ISSUE_TEMPLATE/setup_help.yml` — setup/connection troubleshooting form
 - `.github/ISSUE_TEMPLATE/config.yml` — links to FAQ and support email
-- `docs/troubleshooting.md` — comprehensive FAQ covering install, boyce-init, MCP setup,
+- `docs/troubleshooting.md` — comprehensive FAQ covering install, boyce init, MCP setup,
   snapshot issues, NL→SQL, DB connection, HTTP API
 - `README.md` — Support section added, links to issue templates and FAQ
 
@@ -397,12 +397,12 @@ See `_strategy/plans/block-2-protocol-and-parsers.md` for detailed plan.
 - [x] Define and implement parser plugin interface
 - [x] Build parsers: DDL, SQLite, Django, SQLAlchemy, Prisma, CSV/Parquet (6/8 done)
 - [ ] Build parsers: SQLMesh, Alembic (remaining 2)
-- [x] Build auto-discovery CLI (`boyce-scan` command)
+- [x] Build auto-discovery CLI (`boyce scan` command)
 - [ ] Build standalone dbt→snapshot converter CLI
 - [x] Test suite audit: validate all parsers against `test_warehouses/` fixtures
 - [ ] Publish StructuredFilter spec as NL-to-SQL intermediate representation
 
-**Gate:** `boyce-scan ./any-project/` produces a SemanticSnapshot from any common source. Spec published.
+**Gate:** `boyce scan ./any-project/` produces a SemanticSnapshot from any common source. Spec published.
 
 ### Block 3 — Data Quality & Protocol v0.2 (Days 26-35)
 **Goal:** Data quality becomes a first-class protocol feature. The competitive wedge against dbt MCP.
@@ -469,15 +469,16 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 - Snapshot persistence (`_local_context/`) — survives restarts
 - 10 parsers: dbt_manifest, dbt_project, lookml, sqlite, ddl, csv, parquet, django, sqlalchemy, prisma
   + pre-built SemanticSnapshot JSON passthrough in `parse_from_path()`
-- Scan CLI (`boyce-scan`): walks directories, auto-detects sources, JSON report to stdout
-- Init wizard (`boyce-init`): detects + configures **6 platforms**: Claude Desktop, Cursor, Claude Code, VS Code (servers key), JetBrains/DataGrip (via .idea/ detection + post-config tip), Windsurf
+- Scan CLI (`boyce scan`): walks directories, auto-detects sources, JSON report to stdout
+- Init wizard (`boyce init`): 3-step interactive setup (editors → database → data sources), questionary UI + fallback, auto-discovery
+- Data source discovery (`discovery.py`): auto-detect dbt/LookML/DDL/Django/SQLAlchemy/Prisma/SQLite projects on filesystem
 - Direct CLI: `boyce ask "..."` (NL→SQL, stdout), `boyce chat "..."` (routes through ask_boyce, no intent classifier)
 - HTTP API: `boyce serve --http` (Starlette, Bearer auth, `/schema` `/build-sql` `/ask` `/chat` `/query` `/profile` `/ingest`)
 - Business definitions: `ingest_definition` MCP tool + `DefinitionStore`
 - Audit logging: `AuditLog` append-only JSONL, called from `server.py`
 - Demo kit: docker scenario, seed data, DEMO_SCRIPT.md
-- **289 pytest tests (283 pass, 6 skipped when pyarrow absent), all passing in ~10s**
-- **17 CLI smoke checks** all passing (`test_cli_smoke.py`)
+- **316 pytest tests (310 pass, 6 skipped when pyarrow absent), all passing in ~10s**
+- **20 CLI smoke checks** all passing (`test_cli_smoke.py`)
 
 ### Delivery surface
 | Surface | Entry point | Use case |
@@ -489,11 +490,19 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 | Python library | `from boyce import kernel` | Custom agent integrations |
 
 ### VS Code Extension — Deprioritized (CEO Directive 2026-03-13)
-VS Code has native GA MCP support. Boyce works in VS Code via `.vscode/mcp.json` (configured by `boyce-init`).
+VS Code has native GA MCP support. Boyce works in VS Code via `.vscode/mcp.json` (configured by `boyce init`).
 The `extension/` scaffold is preserved but not actively developed. VS Code extension becomes Option 2 (UX sugar)
 when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension.md`.
 
 ### Recent completions
+- **2026-03-16:** Init wizard overhaul + discovery system + CLI convention change:
+  - Full `init_wizard.py` rewrite: 3-step interactive flow (editors → DB → data sources), questionary + fallback
+  - New `discovery.py` module: auto-detect data source projects on filesystem (8 parser types)
+  - CLI convention: `boyce init` / `boyce scan` subcommands (legacy hyphenated entry points preserved)
+  - Bug fixes: discovery→ingestion path resolution, nested LookML false positive, DSN encoding, manifest detection
+  - Test fixtures: `airflow_analytics/` (8 DDL tables), `sample_sqlite/` (5 tables + seed data)
+  - `test_discovery.py`: 27 new automated tests (detection, resolution, walk, ingestion)
+  - 316 tests, 20 CLI smoke checks, all green
 - **2026-03-14 (early morning):** Battery 5-6 + Opus refactor:
   - Battery 5 (10 tests): 2 bugs found — Bug 22 (column collision, bare field names), Bug 23 (filter on non-joined entity). Both fixed.
   - Opus refactor: extracted `_resolve_field_ref()` helper, eliminated root cause of 5 builder bugs (4, 5, 10, 16, 22). Deleted 66 lines dead code. Net -94 lines. Commit: `ec8bd15`.
@@ -539,8 +548,9 @@ when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension
 | `boyce/src/boyce/types.py` | Protocol contract (SemanticSnapshot, Entity, FieldDef) |
 | `boyce/src/boyce/cli.py` | Unified CLI dispatcher (no intent classifier — routes through ask_boyce) |
 | `boyce/src/boyce/http_api.py` | Starlette REST API with Bearer auth + `/chat` endpoint |
-| `boyce/src/boyce/init_wizard.py` | `boyce-init` — 6-platform MCP host config wizard |
-| `boyce/src/boyce/scan.py` | Scan CLI (`boyce-scan`) — directory walker + auto-detect |
+| `boyce/src/boyce/init_wizard.py` | `boyce init` — 6-platform setup wizard (editors, DB, data sources) |
+| `boyce/src/boyce/scan.py` | `boyce scan` — directory walker + auto-detect |
+| `boyce/src/boyce/discovery.py` | Data source auto-discovery (filesystem walk, project detection, ingestion) |
 | `boyce/src/boyce/adapters/postgres.py` | Read-only DB adapter |
 | `boyce/src/boyce/planner/planner.py` | NL → StructuredFilter |
 | `boyce/src/boyce/parsers/dbt.py` | dbt manifest + YAML parsers |
@@ -549,6 +559,7 @@ when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension
 | `boyce/tests/test_kernel_tools.py` | 37 tests for `get_schema`, `ask_boyce` Mode A/C, `_validate_structured_filter` |
 | `boyce/tests/test_validate_sql.py` | 15 tests for `validate_sql`, `_scan_null_risk`, freshness, drift |
 | `boyce/tests/test_init.py` | 31 tests for init wizard (incl. VS Code, JetBrains, Windsurf) |
+| `boyce/tests/test_discovery.py` | 27 tests for discovery: detection, path resolution, walk, ingestion |
 | `boyce/tests/verify_eyes.py` | 15 offline tests (~4s) |
 | `boyce/tests/test_parsers.py` | Parser tests (all 10 parsers) |
 | `boyce/tests/test_scan.py` | Scan CLI tests (10 tests) |

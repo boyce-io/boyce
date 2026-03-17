@@ -6,6 +6,8 @@ Usage:
     boyce ask "query" [OPTIONS]            Direct NL → SQL (uses ask_boyce pipeline)
     boyce chat "message" [OPTIONS]         Conversational mode
     boyce serve --http [--port N]          Start HTTP API server
+    boyce init                             Setup wizard — configure editors, DB, data sources
+    boyce scan <path> [-o FILE]            Scan a file or directory for data schemas
 
 Options for ask / chat:
     --snapshot NAME    Snapshot name (default: "default")
@@ -117,7 +119,7 @@ async def _cmd_chat(
                 print(f"    Fields: {preview}")
         print(
             "\nTo generate SQL, configure Boyce's LLM credentials:\n"
-            "  Run `boyce-init` to configure your MCP host, or set:\n"
+            "  Run `boyce init` to configure your editor, or set:\n"
             "  BOYCE_PROVIDER=anthropic BOYCE_MODEL=claude-haiku-4-5-20251001"
         )
         return 0
@@ -221,8 +223,15 @@ def _parse_args(argv: list) -> tuple:
             return ("error", {"msg": "Usage: boyce serve --http [--port N]"})
         return ("serve", {"port": port})
 
+    if subcmd == "init":
+        return ("init", {})
+
+    if subcmd == "scan":
+        # Pass remaining args through to scan's own argparse
+        return ("scan", {"argv": argv[1:]})
+
     # Unknown subcommand — print error rather than silently starting MCP server
-    return ("error", {"msg": f"Unknown command: '{subcmd}'\nUsage: boyce [ask|chat|serve] ...\nRun 'boyce --help' for full usage."})
+    return ("error", {"msg": f"Unknown command: '{subcmd}'\nUsage: boyce [ask|chat|init|scan|serve] ...\nRun 'boyce --help' for full usage."})
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +276,17 @@ def main() -> None:
     if subcmd == "serve":
         code = _cmd_serve_http(kwargs["port"])
         sys.exit(code)
+
+    if subcmd == "init":
+        from .init_wizard import run_wizard  # noqa: PLC0415
+        sys.exit(run_wizard())
+
+    if subcmd == "scan":
+        from .scan import main as scan_main  # noqa: PLC0415
+        # Patch sys.argv so scan's argparse sees the right args
+        sys.argv = ["boyce scan"] + kwargs["argv"]
+        scan_main()
+        return
 
 
 if __name__ == "__main__":

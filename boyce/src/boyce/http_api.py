@@ -223,7 +223,7 @@ async def route_chat(request: Request) -> JSONResponse:
         reply = (
             f"Here's what I found in the database for your question:\n{schema_summary}\n\n"
             "To generate SQL, configure Boyce's LLM credentials: "
-            "set BOYCE_PROVIDER and BOYCE_MODEL, or run `boyce-init`."
+            "set BOYCE_PROVIDER and BOYCE_MODEL, or run `boyce init`."
         )
         return JSONResponse({"reply": reply, "tool_used": "ask_boyce", "data": data})
 

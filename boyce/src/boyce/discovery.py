@@ -1,7 +1,7 @@
 """
 boyce discovery — auto-detect data source projects on the local filesystem.
 
-Used by the setup wizard (boyce-init) to find dbt projects, LookML repos,
+Used by the setup wizard (boyce init) to find dbt projects, LookML repos,
 SQL schema collections, ORM models, and similar sources without the user
 having to know file paths.
 
@@ -127,6 +127,33 @@ def discover_sources(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_parse_path(source: DiscoveredSource) -> Path:
+    """Resolve a discovered source's directory to the specific file the parser expects.
+
+    Discovery identifies project *directories* but some parsers (Django,
+    SQLAlchemy, Prisma) expect a specific *file*.  This bridges the gap.
+    """
+    path = source.path
+    if not path.is_dir():
+        return path
+
+    if source.parser_type in ("django", "sqlalchemy"):
+        models_py = path / "models.py"
+        if models_py.exists():
+            return models_py
+
+    if source.parser_type == "prisma":
+        schema = path / "schema.prisma"
+        if schema.exists():
+            return schema
+        # Fall back to first .prisma file in the directory
+        for child in path.iterdir():
+            if child.is_file() and child.suffix.lower() == ".prisma":
+                return child
+
+    return path
+
+
 def ingest_source(source: DiscoveredSource, name: Optional[str] = None) -> str:
     """
     Parse and save a discovered source to _local_context/.
@@ -147,7 +174,8 @@ def ingest_source(source: DiscoveredSource, name: Optional[str] = None) -> str:
     if name is None:
         name = source.path.stem if source.path.is_file() else source.path.name
 
-    snapshot = parse_from_path(source.path)
+    parse_path = _resolve_parse_path(source)
+    snapshot = parse_from_path(parse_path)
     store = SnapshotStore(Path("_local_context"))
     store.save(snapshot, name)
 
@@ -246,18 +274,27 @@ def _check_project_root(dir_path: Path) -> Optional[DiscoveredSource]:
     if lkml_direct:
         return _make_source(dir_path, "lookml", 0.9, is_git)
 
-    # LookML files one level down (views/, explores/ subdirs are common)
+    # LookML files one level down (views/, explores/ subdirs are common).
+    # Guard: only match if most child directories contain .lkml files.
+    # A directory with 10 children where only 1 has .lkml files is a
+    # parent directory (e.g. ~/repos/), not a LookML project root.
     lkml_nested = 0
+    lkml_dirs = 0
+    scannable_dirs = 0
     for child in children.values():
         if child.is_dir() and child.name not in _SKIP_DIRS:
+            scannable_dirs += 1
             try:
-                lkml_nested += sum(
+                count = sum(
                     1 for f in child.iterdir()
                     if f.is_file() and f.suffix.lower() in (".lkml", ".lookml")
                 )
+                if count > 0:
+                    lkml_dirs += 1
+                    lkml_nested += count
             except PermissionError:
                 pass
-    if lkml_nested >= 2:
+    if lkml_nested >= 2 and (scannable_dirs <= 1 or lkml_dirs >= scannable_dirs // 2):
         return _make_source(dir_path, "lookml", 0.85, is_git)
 
     # Prisma

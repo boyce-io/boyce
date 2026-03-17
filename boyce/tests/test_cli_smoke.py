@@ -155,13 +155,27 @@ def define_tests() -> None:
     else:
         _results.append(("boyce-scan demo/snapshot.json (no crash)", True, "SKIPPED — demo fixture not found"))
 
-    # --- boyce-init: runs the wizard; with stdin closed it should detect
+    # --- boyce init: runs the wizard; with stdin closed it should detect
     #     hosts and exit (non-interactively). Not a hang test — just checking
     #     it doesn't crash on startup. ---
-    run([_BOYCE_INIT],
+    run([_BOYCE, "init"],
         expected_exit={0, 1},  # 0=hosts found+configured, 1=nothing to configure
-        label="boyce-init (non-interactive)",
+        label="boyce init (non-interactive)",
         timeout=10)
+
+    # --- legacy boyce-init entry point (backward compat) ---
+    run([_BOYCE_INIT],
+        expected_exit={0, 1},
+        label="boyce-init (legacy entry point)",
+        timeout=10)
+
+    # --- boyce scan: subcommand form ---
+    run([_BOYCE, "scan"],
+        expected_exit=2, label="boyce scan (no path)")
+
+    if Path(_DEMO_SNAPSHOT).exists():
+        run([_BOYCE, "scan", _DEMO_SNAPSHOT],
+            expected_exit={0, 1}, label="boyce scan demo/snapshot.json (no crash)")
 
 
 # ---------------------------------------------------------------------------

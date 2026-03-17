@@ -196,6 +196,8 @@ Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host 
 | `tests/test_audit.py` | AuditLog: file creation, JSON validity, appending, tail() |
 | `tests/test_definitions.py` | DefinitionStore: upsert, overwrite, isolation, context string |
 | `tests/test_parsers.py` | All 10 parsers: detect, parse, protocol compliance, registry |
+| `tests/test_discovery.py` | Auto-discovery: detect, resolve, ingest for all parser types (27 tests) |
+| `tests/test_init.py` | Init wizard: detect_hosts, generate_server_entry, merge_config |
 | `tests/live_fire/run_mission.py` | Full pipeline: Docker Postgres + LLM + EXPLAIN |
 | `demo/magic_moment/verify_demo.py` | Demo smoke test — NULL Trap distribution check |
 | `quickstart.sh` | Dev setup: install, `.env` template, verify_eyes |

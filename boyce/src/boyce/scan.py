@@ -154,9 +154,8 @@ def _save_snapshots(result: Dict[str, Any], target: Path) -> int:
 
 
 def main() -> None:
-    """CLI entry point for boyce-scan."""
+    """CLI entry point for boyce scan."""
     parser = argparse.ArgumentParser(
-        prog="boyce-scan",
         description="Scan files and directories for parseable data schemas.",
     )
     parser.add_argument(

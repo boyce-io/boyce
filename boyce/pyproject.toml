@@ -49,6 +49,7 @@ wizard = ["questionary>=2.0"]
 
 [project.scripts]
 boyce = "boyce.cli:main"
+# Legacy entry points — canonical form is now `boyce init` / `boyce scan`
 boyce-scan = "boyce.scan:main"
 boyce-init = "boyce.init_wizard:main"
 

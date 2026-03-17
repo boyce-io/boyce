@@ -23,6 +23,12 @@ cd test_warehouses/
 | **thelook_lookml/** | [looker-open-source/thelook](https://github.com/looker-open-source/thelook) | 36 KB | 5 entities, 6 joins | LookML parser | Join graph complexity, LookML explore parsing |
 | **northwind_ddl/** | [microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples) | 1.0 MB | 14 | DDL parser (T-SQL dialect) | Classic retail schema, FK relationships |
 | **wide_world_importers_ddl/** | [microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples) | 136 KB | 17 (fact + dimension) | DDL parser (T-SQL dialect) | Star schema, data warehouse patterns |
+| **airflow_analytics/** | Synthetic | 8 KB | 8 (3 dim + 3 fact + 2 bridge) | DDL parser (multi-file) | Airflow-style analytics warehouse, FK chains |
+| **django_models/** | Synthetic | 4 KB | 5 models | Django models parser | ORM-to-schema extraction |
+| **sqlalchemy_models/** | Synthetic | 4 KB | 5 models | SQLAlchemy parser | SQLAlchemy 2.0 mapped_column syntax |
+| **prisma_schema/** | Synthetic | 4 KB | 5 models | Prisma parser | Prisma schema parsing |
+| **postgres_ddl/** | Synthetic | 4 KB | 5 | DDL parser (PostgreSQL) | PostgreSQL-specific DDL syntax |
+| **sample_sqlite/** | Synthetic | 28 KB | 5 + seed data | SQLite parser | SQLite introspection, live profiling |
 
 ### Cloned by setup.sh (git-ignored)
 
@@ -37,29 +43,32 @@ cd test_warehouses/
 |---------|----------|----------------|----------|
 | **Null Trap demo** | `demo/magic_moment/` | dbt manifest parser | Safety layer demo, NULL distribution validation |
 | **Live Fire** | `boyce/tests/live_fire/` | Raw JSON snapshot | Pipeline integration smoke test (Docker) |
-| **Small Retail** | `legacy_v0/tests/universes/small_retail/` | dbt manifest parser | Simple multi-entity fixture |
 
 ## Parser Validation Matrix
 
 Which fixture tests which parser:
 
-| Parser | jaffle_shop | jaffle_shop_duckdb | thelook_lookml | northwind_ddl | wwi_ddl | mattermost | dagster |
-|--------|:-----------:|:------------------:|:--------------:|:-------------:|:-------:|:----------:|:-------:|
-| dbt manifest | | | | | | | |
-| dbt project YAML | X | X | | | | X | X |
-| LookML | | | X | | | | |
-| Raw DDL | | | | X | X | | |
-| CSV/Parquet | X (seeds) | X (seeds) | | | | | |
-| Django models | | | | | | | |
-| SQLAlchemy | | | | | | | |
-| Prisma | | | | | | | |
-| SQLMesh | | | | | | | |
-| Alembic | | | | | | | |
-| Airflow DAG | | | | | | X | |
+| Parser | jaffle_shop | thelook_lookml | northwind_ddl | wwi_ddl | airflow_analytics | django_models | sqlalchemy_models | prisma_schema | postgres_ddl | sample_sqlite |
+|--------|:-----------:|:--------------:|:-------------:|:-------:|:-----------------:|:-------------:|:-----------------:|:-------------:|:------------:|:-------------:|
+| dbt project YAML | X | | | | | | | | | |
+| LookML | | X | | | | | | | | |
+| Raw DDL | | | X | X | X | | | | X | |
+| CSV/Parquet | X (seeds) | | | | | | | | | |
+| Django models | | | | | | X | | | | |
+| SQLAlchemy | | | | | | | X | | | |
+| Prisma | | | | | | | | X | | |
+| SQLite | | | | | | | | | | X |
 
-**Gaps:** No fixtures for Django, SQLAlchemy, Prisma, SQLMesh, or Alembic parsers.
-These parsers will need synthetic fixtures or external repos identified during the
-test suite audit (Block 2).
+**Coverage:** All 8 active parsers (dbt, lookml, ddl, django, sqlalchemy, prisma, sqlite, csv) have at least one committed fixture.
+
+## Auto-Discovery Coverage
+
+The `boyce init` wizard's data source discovery (`discovery.py`) is tested against these
+fixtures in `boyce/tests/test_discovery.py`. The test suite verifies:
+- Detection: each fixture is correctly identified by parser type
+- Path resolution: directory→file mapping for Django/SQLAlchemy/Prisma
+- Ingestion: full detect→parse→save pipeline produces valid snapshots
+- Walk behavior: deduplication, confidence sorting, empty/nonexistent roots
 
 ## Data Characteristics
 
@@ -77,6 +86,18 @@ test suite audit (Block 2).
 - Derived dimensions using correlated subqueries
 - `returned_at` nullable (sparse returns — potential NULL trap test)
 - No seed data (LookML structure only)
+
+### airflow_analytics (multi-file DDL, FK chains)
+- 8 tables: 3 dimensions (customers, products, dates) + 1 bridge (channels) + 3 fact (orders, order_items, payments) + 1 session fact
+- FK chains: fact_orders → dim_customers, dim_dates; fact_order_items → fact_orders, dim_products
+- Redshift-compatible DDL (GETDATE(), DECIMAL, BOOLEAN)
+- Numbered files simulate Airflow DAG task ordering
+
+### sample_sqlite (live profiling)
+- 5 tables: customers, products, orders, order_items, reviews
+- Seed data included (3 customers, 3 products, 3 orders, 4 line items, 2 reviews)
+- NULL values present (Carol White has NULL email, one review has NULL comment)
+- Supports live profiling and NULL trap detection testing
 
 ### northwind_ddl (classic retail, T-SQL)
 - 14 tables: Categories, Customers, Employees, Orders, OrderDetails, Products, Shippers, Suppliers, etc.
