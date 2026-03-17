@@ -50,7 +50,9 @@ def _ensure_questionary() -> bool:
     except ImportError:
         pass
 
-    print("\n  For the best experience, Boyce uses interactive prompts.")
+    print("\n  Boyce's setup wizard works best with interactive prompts.")
+    print("  This requires one small package (questionary).")
+    print()
     raw = input("  Install now? [Y/n]: ").strip().lower()
     if raw in ("n", "no"):
         print("  Continuing with basic prompts.\n")
@@ -355,10 +357,8 @@ def _print_step(n: int, total: int, title: str) -> None:
 
 
 def _ask_yes_no(prompt: str, default: bool = True) -> bool:
-    """Y/n prompt. Returns True for yes."""
+    """Y/n prompt. Always requires Enter for consistency."""
     hint = "[Y/n]" if default else "[y/N]"
-    if _q:
-        return _q.confirm(prompt, default=default).ask() or False
     raw = input(f"  {prompt} {hint}: ").strip().lower()
     if raw == "":
         return default
@@ -465,7 +465,7 @@ def _step_editors(hosts: List[MCPHost]) -> List[MCPHost]:
     Let the user select which editors to configure.
     Returns list of selected MCPHost objects.
     """
-    _print_step(1, 3, "Select Your Editors")
+    _print_step(1, 3, "Connecting Your Editors")
 
     # Sort: detected first, then alphabetical
     detected = [h for h in hosts if h.exists]
@@ -645,7 +645,7 @@ def _step_databases() -> List[Tuple[str, str]]:
     Let the user configure database connections.
     Returns list of (name, dsn) tuples.
     """
-    _print_step(2, 3, "Connect Your Database")
+    _print_step(2, 3, "Connecting Your Database")
 
     print("  Connect to your database for live queries and SQL validation.")
     print("  Press Enter to skip — you can always add this later.\n")
@@ -680,7 +680,7 @@ def _step_data_sources() -> List[Tuple[str, str]]:
     Let the user discover and ingest data sources.
     Returns list of (snapshot_name, result_description) for successfully ingested sources.
     """
-    _print_step(3, 3, "Add Your Data Sources")
+    _print_step(3, 3, "Discovering Your Data Sources")
 
     print("  Boyce can also learn your schema from files you already have:")
     print("    • dbt projects (models, sources, schema.yml)")
@@ -728,7 +728,7 @@ def _run_auto_discovery() -> List[Tuple[str, str]]:
 
     pre_checked = [s.pre_selected for s in sources]
 
-    print(f"  Found {len(sources)} data source{'s' if len(sources) != 1 else ''}:\n")
+    print(f"  Discovered {len(sources)} data source{'s' if len(sources) != 1 else ''}:\n")
     selected_labels = _ask_checkbox(
         "Ingest which?  (Space to toggle, Enter to confirm)",
         labels,
@@ -843,8 +843,9 @@ def _print_summary(
     source_entries: List[Tuple[str, str]],
 ) -> None:
     """Print the final summary screen."""
-    print("\nDone! Boyce is ready.")
-    print("═" * 38)
+    print()
+    print("  " + "═" * 40)
+    print("  Done! Boyce is ready.")
 
     if configured_editors:
         editor_names = "  ".join(h.name for h in configured_editors)
@@ -884,8 +885,8 @@ def run_wizard() -> int:
         print("Run this command directly in your terminal, not as a subprocess.")
         return 1
 
-    print("\nBoyce Setup Wizard")
-    print("=" * 40)
+    print("\n  Boyce Setup")
+    print("  " + "═" * 40)
 
     try:
         return _run_wizard_interactive()
