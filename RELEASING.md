@@ -1,89 +1,242 @@
-# RELEASING — Boyce
+# RELEASING.md — Boyce Publish Runbook
 
-Release checklist for every version of Boyce published to PyPI and beyond.
-
-Publish surfaces canonical list: `ConvergentMethods/ASSETS.md` → **Publish Surfaces → Boyce**.
-Adding a new channel = one edit there; this file picks it up automatically.
+**Purpose:** Step-by-step checklist for publishing a Boyce release.
+Run top-to-bottom. Do not skip steps. Each step has a verification.
 
 ---
 
-## Pre-Release
+## Pre-Publish Gate (must all be true)
 
-- [ ] All tests passing: `python -m pytest boyce/tests/ -v`
-- [ ] `verify_eyes.py` clean: `python boyce/tests/verify_eyes.py`
-- [ ] Version bumped in `boyce/pyproject.toml` (`version = "X.Y.Z"`)
-- [ ] `CHANGELOG.md` updated with release notes (what changed, breaking changes if any)
-- [ ] Git tag created: `git tag vX.Y.Z && git push origin vX.Y.Z`
+- [ ] Cursor cross-platform test PASSED
+- [ ] All tests pass: `python -m pytest boyce/tests/ -v` (316 pass, 6 skip)
+- [ ] CLI smoke checks pass: `python -m pytest boyce/tests/test_cli_smoke.py -v`
+- [ ] Clean venv install works: `uv venv /tmp/boyce-release && uv pip install -e boyce/ && /tmp/boyce-release/bin/boyce --help`
+- [ ] Version number decided: __________ (write it here)
+- [ ] `git status` is clean on main branch
+- [ ] No open PRs that should be merged first
 
 ---
 
-## Publish to PyPI
+## Step 1: Set Version
+
+Edit `boyce/src/boyce/__init__.py` (or wherever `__version__` lives):
+```bash
+# Verify current version
+grep -r "__version__" boyce/src/boyce/
+# Update to release version
+vim boyce/src/boyce/__init__.py
+```
+
+Edit `boyce/pyproject.toml`:
+```bash
+vim boyce/pyproject.toml
+# Update: version = "X.Y.Z"
+```
+
+**Verify:** `grep version boyce/pyproject.toml` shows the correct version.
+
+---
+
+## Step 2: Final Test Run
+
+```bash
+cd /Users/willwright/ConvergentMethods/products/Boyce
+python -m pytest boyce/tests/ -v
+python -m pytest boyce/tests/test_cli_smoke.py -v
+```
+
+**Verify:** All pass. Do not proceed if any fail.
+
+---
+
+## Step 3: Build Package
 
 ```bash
 cd boyce/
 uv build
-uv publish
 ```
 
-Verify at https://pypi.org/project/boyce/ — confirm version, description, classifiers.
+**Verify:** `ls dist/` shows `boyce-X.Y.Z.tar.gz` and `boyce-X.Y.Z-py3-none-any.whl`
 
 ---
 
-## Update All Publish Surfaces
+## Step 4: Test Package Install (clean env)
 
-Work through the table in `ASSETS.md`. For each surface:
+```bash
+uv venv /tmp/boyce-publish-test
+uv pip install --python /tmp/boyce-publish-test/bin/python dist/boyce-X.Y.Z-py3-none-any.whl
+/tmp/boyce-publish-test/bin/boyce --help
+/tmp/boyce-publish-test/bin/python -c "from boyce import process_request, SemanticSnapshot; print('OK')"
+```
 
-### GitHub README (`github.com/boyce-io/boyce`)
-- Update version badge (if present)
-- Update install examples if commands changed
-- Update feature/tool count if added/removed
-
-### Product Page (`convergentmethods.com/boyce/`)
-- Update version references
-- Update feature list, code examples, or MCP tool table if changed
-- Deploy: commit + push `sites/convergentmethods/` → GitHub Pages auto-deploys
-
-### Agent Docs — Index (`convergentmethods.com/boyce/llms.txt`)
-- Update `Version:` line
-- Update tool list if tools added/removed
-- Sync with `llms-full.txt`
-
-### Agent Docs — Full Reference (`convergentmethods.com/boyce/llms-full.txt`)
-- Update `Version:` line
-- Update tool parameters if signatures changed
-- Update Known Limitations if resolved or added
-- Deploy with product page commit above
-
-### CM Root Page (`convergentmethods.com/`)
-- Update product description if positioning changed (usually no-op)
-
-### CM Agent Index (`convergentmethods.com/llms.txt`)
-- Update Boyce entry if description changed (usually no-op)
-
-### MCP Directories (Smithery, PulseMCP, mcp.so, Glama)
-- Update version, description, tool count
-- These are manual submissions — check each registry's update flow
-
-### boyce.io (when live)
-- Mirror product page or point redirect to convergentmethods.com/boyce/
-- Currently deferred — domain in transfer (see `ASSETS.md` → boyce.io Transfer Status)
+**Verify:** CLI starts, public imports work.
 
 ---
 
-## Post-Release Verification
+## Step 5: Publish to PyPI
 
-- [ ] `pip install boyce==X.Y.Z` succeeds in a clean environment
-- [ ] MCP server starts: `boyce` (no args)
-- [ ] `boyce init` runs without error
-- [ ] Product page renders correct version
-- [ ] `llms.txt` and `llms-full.txt` reflect new version
+```bash
+cd boyce/
+uv publish
+# Will prompt for PyPI credentials (or use token via TWINE_PASSWORD)
+```
+
+**Verify:**
+```bash
+pip install boyce==X.Y.Z  # from a fresh terminal
+boyce --help
+```
+Also check: https://pypi.org/project/boyce/ — page renders, description looks correct.
 
 ---
 
-## Version Numbering
+## Step 6: Git Tag + Push
 
-- `0.x.y` — pre-1.0, no stability guarantee
-- `1.0.0` — first stable release (post Will's hands-on testing sprint)
-- Increment patch (`0.1.x`) for bug fixes and minor additions
-- Increment minor (`0.x.0`) for new tools, new parsers, or protocol changes
-- Increment major (`x.0.0`) for breaking SemanticSnapshot schema changes
+```bash
+cd /Users/willwright/ConvergentMethods/products/Boyce
+git add -A
+git commit -m "release: Boyce vX.Y.Z — first public release
+
+Deterministic SQL compiler and semantic protocol for agentic database workflows.
+7 MCP tools, 10 source parsers, NULL trap detection, EXPLAIN pre-flight.
+MIT licensed."
+
+git tag -a vX.Y.Z -m "Boyce vX.Y.Z — first public release"
+git push origin main --tags
+```
+
+**Verify:** `git log --oneline -1` shows the release commit. Tag visible on GitHub.
+
+---
+
+## Step 7: GitHub Release
+
+Go to: https://github.com/boyce-io/boyce/releases/new
+
+- **Tag:** vX.Y.Z (select existing tag)
+- **Title:** Boyce vX.Y.Z — First Public Release
+- **Body:** (paste release notes — draft separately or use template below)
+- **Attach:** the `.tar.gz` and `.whl` from `dist/` (optional — PyPI is the primary)
+- **Mark as latest release**
+
+**Verify:** Release page is live, links work.
+
+---
+
+## Step 8: Phase C Stage 1 — Distribution (same day)
+
+### MCP Directory Submissions
+Content is pre-drafted in `_strategy/mcp-directory-submissions.md`. Submit to all four:
+
+- [ ] **Smithery** — https://smithery.ai/submit
+- [ ] **PulseMCP** — https://pulsemcp.com/submit
+- [ ] **mcp.so** — https://mcp.so (Add Server)
+- [ ] **Glama** — https://glama.ai/mcp/servers
+
+### JetBrains ACP Registry
+- [ ] Submit using canonical content adapted to ACP format
+
+### Note submission dates below:
+- Smithery: __________
+- PulseMCP: __________
+- mcp.so: __________
+- Glama: __________
+- JetBrains ACP: __________
+
+---
+
+## Step 9: Verify All Publish Surfaces
+
+Cross-reference with `ASSETS.md` publish surfaces table:
+
+| Surface | URL | Updated? |
+|---------|-----|----------|
+| PyPI | https://pypi.org/project/boyce/ | [ ] |
+| GitHub README | https://github.com/boyce-io/boyce | [ ] |
+| Product page | https://convergentmethods.com/boyce/ | [ ] |
+| Agent docs (index) | https://convergentmethods.com/boyce/llms.txt | [ ] |
+| Agent docs (full) | https://convergentmethods.com/boyce/llms-full.txt | [ ] |
+| CM root page | https://convergentmethods.com | [ ] |
+| CM agent index | https://convergentmethods.com/llms.txt | [ ] |
+
+**Version must be consistent across all surfaces.**
+
+If any surface references a stale version or has outdated content, fix it now.
+
+---
+
+## Step 10: Update Plan Docs
+
+```bash
+# In _strategy/MASTER.md:
+# - Mark Phase B as COMPLETE
+# - Update "Current phase" to Phase C
+# - Check off Phase C Stage 1 items
+# - Update "Last updated" date
+
+# In root ConvergentMethods/MASTER.md:
+# - Update Boyce status line
+```
+
+**Verify:** `git diff` shows only the expected status changes. Commit and push.
+
+---
+
+## Post-Publish (next 48 hours)
+
+These are Phase C Stages 2-3. Not blocking, but do them while momentum is fresh:
+
+- [ ] **Agent SEO baseline** — run test queries across Claude, GPT, Gemini (Stage 2)
+- [ ] **Content review pass** — all 8 surfaces, manually (Stage 3)
+- [ ] **Celebrate** — you shipped a product
+
+---
+
+## Release Notes Template
+
+```markdown
+# Boyce vX.Y.Z — First Public Release
+
+Deterministic SQL compiler and semantic protocol for agentic database workflows.
+
+## Install
+
+```
+pip install boyce
+```
+
+## What's In This Release
+
+- **7 MCP tools:** `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce` (tri-modal), `validate_sql`, `query_database`, `profile_data`
+- **10 source parsers:** dbt manifest, dbt project, LookML, raw DDL, SQLite, Django, SQLAlchemy, Prisma, CSV, Parquet
+- **Deterministic SQL kernel:** Same inputs → same SQL, byte-for-byte, every time. Zero LLM in the compiler.
+- **NULL Trap detection:** Profiles equality-filtered columns for NULL hazards before the query runs.
+- **EXPLAIN pre-flight:** Every generated query is validated against the database before returning.
+- **Redshift safety linting:** Catches Redshift 1.0 incompatibilities at compile time.
+- **Dijkstra join resolution:** Optimal join paths via weighted semantic graph.
+- **Multi-dialect SQL:** Redshift, Postgres, DuckDB, BigQuery.
+- **Zero-config for MCP hosts:** Works with Claude Code, Cursor, VS Code, DataGrip, and any MCP-compatible editor — no API key needed.
+- **Setup wizard:** `boyce init` auto-detects your editor, database, and data sources.
+- **Auto-discovery:** `boyce scan ./` finds and ingests your project's schema sources.
+
+## Quick Start
+
+```bash
+pip install boyce
+boyce init          # configure your editor + database
+boyce scan ./       # auto-detect and ingest schema sources
+boyce ask "total revenue by customer segment"
+```
+
+## Links
+
+- **Docs:** https://convergentmethods.com/boyce/
+- **GitHub:** https://github.com/boyce-io/boyce
+- **The Null Trap:** https://convergentmethods.com/boyce/null-trap/
+
+## License
+
+MIT. The engine is free forever. No paywalls. No open-core bait-and-switch.
+
+Named for [Raymond F. Boyce](https://en.wikipedia.org/wiki/Raymond_F._Boyce), co-inventor of SQL (1974).
+```
