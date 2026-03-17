@@ -24,6 +24,7 @@ venv.bak/
 # IDE
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 .DS_Store
@@ -84,8 +85,14 @@ __pycache__/
 .claude/settings.json
 .claude/sensitive_terms.txt
 
+# MCP host configs (developer-specific)
+.mcp.json
+
 # Build artifacts
 *.egg-info/
+
+# Lock files (developer-local, not committed)
+uv.lock
 
 # Dead tools
 CURSOR.md
