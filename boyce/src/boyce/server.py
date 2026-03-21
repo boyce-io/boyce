@@ -317,7 +317,16 @@ logger = logging.getLogger(__name__)
 # Server bootstrap
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP("Boyce", json_response=True)
+mcp = FastMCP(
+    "Boyce",
+    json_response=True,
+    instructions=(
+        "Boyce is a semantic safety layer for database queries. Every query "
+        "compiled through ask_boyce is checked for NULL traps (columns that "
+        "silently drop rows), execution plan validity, and dialect compatibility. "
+        "Start with ask_boyce for any data question."
+    ),
+)
 
 # Context dir: _local_context/ relative to the working directory at runtime.
 _LOCAL_CONTEXT = Path("_local_context")
@@ -343,6 +352,8 @@ _OPERATOR_ALIASES: Dict[str, str] = {
 
 # Lazily initialised once the first query_database call arrives.
 _adapter: "DatabaseAdapter | None" = None
+# DSN stored from ingest_source live-DB path; used as fallback when BOYCE_DB_URL is not set.
+_ingest_db_url: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -631,17 +642,103 @@ async def _run_sql_pipeline(
 # ---------------------------------------------------------------------------
 
 
+def _build_suggested_filter(
+    query_words: set,
+    top_entities: List[dict],
+    snapshot: "SemanticSnapshot",
+) -> Optional[dict]:
+    """
+    Build a candidate StructuredFilter from keyword overlap with entity/field
+    names.  Uses simple heuristics — no LLM.  Returns None if no entities match.
+
+    The host LLM can pass this directly to ask_boyce(structured_filter=...)
+    or adjust it before calling back.
+    """
+    if not top_entities:
+        return None
+
+    matched_entities = []
+    dimensions = []
+    metrics = []
+    id_field = None
+
+    for ent_dict in top_entities:
+        eid = ent_dict["entity_id"]
+        entity = snapshot.entities.get(eid)
+        if not entity:
+            continue
+        matched_entities.append({"entity_id": eid, "entity_name": entity.name})
+
+        for fid in entity.fields:
+            field = snapshot.fields.get(fid)
+            if not field:
+                continue
+            name_words = set(re.findall(r"\b\w+\b", field.name.lower()))
+            if not name_words & query_words:
+                continue
+            # Classify by field type
+            if field.field_type.value == "MEASURE":
+                metrics.append({
+                    "metric_name": field.name,
+                    "field_id": field.id,
+                    "aggregation_type": "SUM",
+                })
+            elif field.field_type.value in ("DIMENSION", "TIMESTAMP"):
+                dimensions.append({
+                    "field_id": field.id,
+                    "field_name": field.name,
+                    "entity_id": eid,
+                })
+            elif field.field_type.value == "ID" and id_field is None:
+                id_field = field
+
+    # If no metrics found but we have an ID, suggest COUNT
+    if not metrics and id_field:
+        metrics.append({
+            "metric_name": f"{id_field.name}_count",
+            "field_id": id_field.id,
+            "aggregation_type": "COUNT",
+        })
+
+    if not matched_entities:
+        return None
+
+    has_aggregation = bool(metrics)
+    grouping_fields = [d["field_id"] for d in dimensions] if has_aggregation else []
+
+    return {
+        "concept_map": {
+            "entities": matched_entities,
+            "fields": [],
+            "metrics": metrics,
+            "dimensions": dimensions,
+            "filters": [],
+        },
+        "join_path": [e["entity_id"] for e in matched_entities],
+        "grain_context": {
+            "aggregation_required": has_aggregation,
+            "grouping_fields": grouping_fields,
+        },
+        "policy_context": {"resolved_predicates": []},
+        "temporal_filters": [],
+        "dialect": "postgres",
+    }
+
+
 def _build_schema_guidance(
     query: str,
     snapshot: "SemanticSnapshot",
     snapshot_name: str,
 ) -> str:
     """
-    Mode C fallback for ask_boyce: return schema context + StructuredFilter docs
-    so the host LLM can construct a filter and call back with structured_filter.
+    Mode C fallback for ask_boyce: return schema context + a suggested
+    StructuredFilter so the host LLM can call back immediately.
 
     Scores entities by keyword overlap with the query (mirrors planner.py:131-138)
-    and returns the top-50 most relevant with full field details.
+    and returns the top-50 most relevant with full field details.  Also constructs
+    a candidate StructuredFilter from matched entities/fields — the host LLM can
+    relay it directly to ask_boyce(structured_filter=...) without understanding
+    the full spec.
     """
     # Score entities by keyword overlap with query
     query_words = set(re.findall(r"\b\w+\b", query.lower()))
@@ -679,20 +776,30 @@ def _build_schema_guidance(
 
     definitions_context = _definitions.as_context_string(snapshot_name)
 
-    return json.dumps({
+    # Build a candidate StructuredFilter from keyword-matched entities/fields
+    suggested = _build_suggested_filter(query_words, entities_out, snapshot)
+
+    result: dict = {
         "mode": "schema_guidance",
         "message": (
-            "Boyce has no LLM credentials configured. "
-            "Use the schema context and StructuredFilter docs below to construct "
-            "a StructuredFilter, then call ask_boyce again with the "
-            "structured_filter parameter. No additional credentials are needed."
+            "Here is a suggested StructuredFilter for your query.  "
+            "Call ask_boyce again with structured_filter set to the "
+            "suggested_filter below.  You may adjust it first or pass "
+            "it directly — no additional credentials are needed."
         ),
         "query": query,
         "snapshot_name": snapshot_name,
         "relevant_entities": entities_out,
         "structured_filter_docs": _STRUCTURED_FILTER_DOCS,
         "definitions_context": definitions_context or None,
-    })
+    }
+    if suggested:
+        result["suggested_filter"] = suggested
+    ad = _build_advertising_layer(
+        sql=None, snapshot_name=snapshot_name, tool_name="ask_boyce", mode="C",
+    )
+    result = {**ad, **result}
+    return json.dumps(result)
 
 
 # ---------------------------------------------------------------------------
@@ -983,10 +1090,14 @@ async def ingest_source(
     snapshot_name: str = "default",
 ) -> str:
     """
-    Ingest a database schema and store it as a named snapshot. Call this FIRST
-    before using ask_boyce or build_sql.
+    Teach Boyce about a database — point it at any schema source and get a semantic snapshot.
 
-    Provide exactly one of source_path or snapshot_json.
+    Accepts 10+ formats (DDL, dbt, LookML, SQLite, Django, SQLAlchemy, Prisma,
+    CSV, Parquet, live PostgreSQL DSN) — auto-detected from the path. Snapshots
+    persist across sessions. Provide exactly one of source_path or snapshot_json.
+
+    **Call this first.** All other tools (ask_boyce, get_schema, validate_sql,
+    query_database, profile_data) require a snapshot.
 
     Args:
         source_path: Either a file/directory path OR a live PostgreSQL DSN.
@@ -1030,6 +1141,10 @@ async def ingest_source(
                     fk_rows = await tmp_adapter.get_foreign_keys()
                 finally:
                     await tmp_adapter.disconnect()
+                # Store DSN so query_database/profile_data can connect
+                # without requiring BOYCE_DB_URL to be set separately.
+                global _ingest_db_url
+                _ingest_db_url = source_path
                 snapshot = _build_snapshot_from_live_db(schema_summary, fk_rows, source_path)
             except Exception as e:
                 return json.dumps({
@@ -1068,7 +1183,11 @@ async def ingest_source(
         if snapshot.snapshot_id not in _graph.snapshots:
             _graph.add_snapshot(snapshot)
 
+        ad = _build_advertising_layer(
+            sql=None, snapshot_name=snapshot_name, tool_name="ingest_source",
+        )
         return json.dumps({
+            **ad,
             "snapshot_id": snapshot.snapshot_id,
             "snapshot_name": snapshot_name,
             "entities_count": len(snapshot.entities),
@@ -1114,7 +1233,11 @@ async def ingest_source(
     if snapshot.snapshot_id not in _graph.snapshots:
         _graph.add_snapshot(snapshot)
 
+    ad = _build_advertising_layer(
+        sql=None, snapshot_name=snapshot_name, tool_name="ingest_source",
+    )
     return json.dumps({
+        **ad,
         "snapshot_id": snapshot.snapshot_id,
         "snapshot_name": snapshot_name,
         "entities_count": len(snapshot.entities),
@@ -1132,12 +1255,14 @@ def ingest_definition(
     snapshot_name: str = "default",
 ) -> str:
     """
-    Store a certified business definition that Boyce will apply at query time.
+    Store a certified business definition that Boyce applies automatically at query time.
 
-    Business definitions encode *what your data means* — the logic that lives in
-    analysts' heads or scattered across docs but is never in the schema itself.
-    Once stored, Boyce injects these definitions into the planner so they are
-    applied automatically whenever the term appears in a natural language query.
+    Business definitions encode what your data *means* — the logic that lives in
+    analysts' heads or scattered across docs but never in the schema. Once stored,
+    Boyce injects them into the planner whenever the term appears in a query.
+
+    **Upstream of ask_boyce:** definitions are applied automatically during query
+    planning — no extra steps needed after storing them.
 
     Examples:
         term="revenue", definition="Total recognized revenue — SUM of order_total
@@ -1184,7 +1309,11 @@ def ingest_definition(
     except Exception as e:
         return json.dumps({"error": {"code": -32603, "message": f"Failed to store definition: {e}"}})
 
+    ad = _build_advertising_layer(
+        sql=None, snapshot_name=snapshot_name, tool_name="ingest_definition",
+    )
     return json.dumps({
+        **ad,
         "term": term.strip(),
         "snapshot_name": snapshot_name,
         "definitions_count": count,
@@ -1196,17 +1325,16 @@ def get_schema(
     snapshot_name: str = "default",
 ) -> str:
     """
-    Return the full schema context for a snapshot — entities, fields, joins,
-    business definitions, and StructuredFilter documentation.
+    See what the database actually contains before writing a query.
 
-    **Call this first** when you need to understand a database before generating SQL.
-    Read the schema to learn what entities (tables), fields (columns), joins, and
-    business definitions are available. Use the StructuredFilter documentation to
-    construct a filter for `ask_boyce`.
+    Returns full schema context — every table, column, type, nullable flag,
+    join path with confidence weight, and certified business definition.
+    Without this, your SQL is guessing at column names, types, and
+    relationships. Includes StructuredFilter documentation with examples
+    so you can construct a validated query for ask_boyce.
 
-    If you are an MCP host with your own LLM: read this schema, reason about the
-    user's question, construct a StructuredFilter, and pass it to `ask_boyce`.
-    No additional credentials or API keys are needed.
+    **Upstream of ask_boyce:** construct a StructuredFilter from this schema,
+    then pass it to ask_boyce for deterministic, safety-checked SQL.
 
     Args:
         snapshot_name: Name of a previously ingested snapshot. Defaults to "default".
@@ -1217,8 +1345,8 @@ def get_schema(
             snapshot_id            — SHA-256 id of the snapshot
             snapshot_name          — logical name
             entities               — list of entity dicts with full field details
-            joins                  — list of join dicts with weights
-            definitions            — list of business definition dicts (if any)
+            joins                  — list of join dicts with confidence weights
+            definitions            — list of certified business definitions (if any)
             structured_filter_docs — complete StructuredFilter format documentation
                                      with examples for constructing an `ask_boyce` call
     """
@@ -1284,7 +1412,11 @@ def get_schema(
     definitions_raw = _definitions.load_all(snapshot_name)
     definitions_out = list(definitions_raw.values()) if definitions_raw else []
 
+    ad = _build_advertising_layer(
+        sql=None, snapshot_name=snapshot_name, tool_name="get_schema",
+    )
     result: Dict[str, Any] = {
+        **ad,
         "snapshot_id": snapshot.snapshot_id,
         "snapshot_name": snapshot_name,
         "entities": entities_out,
@@ -1487,35 +1619,39 @@ async def ask_boyce(
     dialect: str = "redshift",
 ) -> str:
     """
-    Generate safe, deterministic SQL from either a natural language question or a
-    StructuredFilter.
+    Answer data questions with SQL that has been safety-checked against the
+    actual data. Handles counts, totals, averages, rankings, comparisons,
+    joins, filters, time series — any question about database tables.
 
-    **For MCP hosts (Claude, Cursor, Copilot, etc.):** Call `get_schema` first to
-    understand the database. Construct a StructuredFilter from the schema and pass
-    it here via the `structured_filter` parameter. No additional credentials needed.
-    Boyce compiles deterministic SQL and runs safety checks (NULL trap detection,
-    EXPLAIN pre-flight, Redshift compatibility lint).
+    You can write SQL yourself. But you cannot know that the column you are
+    filtering on is 30% NULL and will silently drop rows, or that the join
+    you picked was inferred with low confidence and may produce duplicates.
+    This tool checks your query against data reality before you run it.
 
-    **For standalone use (CLI, HTTP API):** Pass a `natural_language_query` and
-    configure BOYCE_PROVIDER + BOYCE_MODEL environment variables.
+    **Recommended flow:** Call `get_schema` first, construct a StructuredFilter
+    from the schema, pass it here. No API keys needed. Boyce compiles
+    deterministic SQL and runs NULL trap detection, EXPLAIN pre-flight, and
+    compatibility checks.
 
-    If called with only a natural language query and no LLM credentials are configured,
-    returns relevant schema context so you can construct the filter and call back.
+    If called with a natural language query and no StructuredFilter, Boyce
+    returns a suggested_filter — call ask_boyce again with structured_filter
+    set to the suggested_filter from the response. One extra round-trip,
+    zero configuration.
 
-    Operates in three modes:
-
-    **Mode A — StructuredFilter provided (zero credentials needed):**
+    **Mode A — StructuredFilter provided (zero credentials, recommended):**
         ask_boyce(structured_filter={...}, snapshot_name="default")
-        Skips the planner entirely. Runs deterministic pipeline only.
+        Deterministic SQL pipeline. No LLM needed.
 
-    **Mode B — NL query with credentials configured:**
+    **Mode B — NL query with LLM credentials configured:**
         ask_boyce(natural_language_query="revenue by product", snapshot_name="default")
-        Runs QueryPlanner (LiteLLM) then deterministic pipeline.
+        QueryPlanner translates to StructuredFilter, then deterministic pipeline.
 
-    **Mode C — NL query with no credentials:**
+    **Mode C — NL query without credentials:**
         ask_boyce(natural_language_query="revenue by product", snapshot_name="default")
-        Returns schema guidance so the host LLM can construct a StructuredFilter
-        and call back. Two round-trips, zero configuration.
+        Returns a suggested_filter — call ask_boyce again with it as
+        structured_filter. Two round-trips, zero configuration.
+
+    **Pass the returned SQL to query_database to execute it.**
 
     Args:
         natural_language_query: Free-form question. Optional when structured_filter
@@ -1602,6 +1738,16 @@ async def ask_boyce(
             )
             return json.dumps({"error": {"code": -32603, "message": str(e)}})
 
+        ad = _build_advertising_layer(
+            sql=payload.get("sql"),
+            snapshot_name=snapshot_name,
+            tool_name="ask_boyce",
+            validation=payload.get("validation"),
+            null_trap_warnings=payload.get("null_trap_warnings"),
+            compat_risks=payload.get("compat_risks"),
+            mode="A",
+        )
+        payload = {**ad, **payload}
         if freshness_warning:
             payload["freshness_warning"] = freshness_warning
         if drift_report:
@@ -1650,11 +1796,424 @@ async def ask_boyce(
         )
         return json.dumps({"error": {"code": -32603, "message": str(e)}})
 
+    ad = _build_advertising_layer(
+        sql=payload.get("sql"),
+        snapshot_name=snapshot_name,
+        tool_name="ask_boyce",
+        validation=payload.get("validation"),
+        null_trap_warnings=payload.get("null_trap_warnings"),
+        compat_risks=payload.get("compat_risks"),
+        mode="B",
+    )
+    payload = {**ad, **payload}
     if freshness_warning:
         payload["freshness_warning"] = freshness_warning
     if drift_report:
         payload["drift_warning"] = drift_report
     return json.dumps(payload)
+
+
+# ---------------------------------------------------------------------------
+# Response advertising layer
+# ---------------------------------------------------------------------------
+
+# SQL clause patterns for extracting referenced columns
+_WHERE_COL_RE = re.compile(
+    r"\bWHERE\b(.+?)(?:\bGROUP\b|\bORDER\b|\bLIMIT\b|\bHAVING\b|$)",
+    re.IGNORECASE | re.DOTALL,
+)
+_JOIN_ON_COL_RE = re.compile(
+    r"\bON\b\s+\"?(\w+)\"?\.\"?(\w+)\"?\s*=\s*\"?(\w+)\"?\.\"?(\w+)\"?",
+    re.IGNORECASE,
+)
+_GROUP_BY_COL_RE = re.compile(
+    r"\bGROUP\s+BY\b\s+(.+?)(?:\bORDER\b|\bLIMIT\b|\bHAVING\b|$)",
+    re.IGNORECASE | re.DOTALL,
+)
+_COL_REF_RE = re.compile(r"\"?(\w+)\"?\.\"?(\w+)\"?")
+_BARE_COL_RE = re.compile(r"\b([a-zA-Z_]\w*)\b")
+_FROM_TABLE_RE = re.compile(
+    r"\bFROM\b\s+\"?(\w+)\"?(?:\s+(?:AS\s+)?\"?(\w+)\"?)?",
+    re.IGNORECASE,
+)
+_JOIN_TABLE_RE = re.compile(
+    r"\bJOIN\b\s+\"?(\w+)\"?(?:\s+(?:AS\s+)?\"?(\w+)\"?)?",
+    re.IGNORECASE,
+)
+# SQL keywords to exclude from bare-column matching
+_SQL_KEYWORDS = frozenset({
+    "select", "from", "where", "and", "or", "not", "in", "is", "null",
+    "like", "ilike", "between", "exists", "case", "when", "then", "else",
+    "end", "as", "on", "join", "inner", "left", "right", "full", "outer",
+    "cross", "group", "by", "order", "asc", "desc", "limit", "offset",
+    "having", "union", "all", "distinct", "count", "sum", "avg", "min",
+    "max", "true", "false", "cast", "coalesce", "nullif",
+})
+
+
+def _extract_from_tables(sql: str) -> Dict[str, str]:
+    """
+    Extract table names from FROM and JOIN clauses.
+
+    Returns dict mapping alias (or table name if no alias) → real table name.
+    E.g. ``FROM films f`` → ``{"f": "films", "films": "films"}``.
+    """
+    tables: Dict[str, str] = {}
+    for pattern in (_FROM_TABLE_RE, _JOIN_TABLE_RE):
+        for m in pattern.finditer(sql):
+            real_name = m.group(1)
+            alias = m.group(2)
+            tables[real_name] = real_name
+            if alias:
+                tables[alias] = real_name
+    return tables
+
+
+def _extract_referenced_columns(sql: str) -> Dict[str, str]:
+    """
+    Extract columns referenced in WHERE, JOIN ON, and GROUP BY clauses.
+
+    Returns dict keyed by "table.column" → clause type ("WHERE", "JOIN ON",
+    "GROUP BY").  Handles both qualified (``table.column``) and bare
+    (``column``) references.  Bare names are keyed as ``"?.column"`` — the
+    caller is responsible for resolving them against a snapshot.
+
+    Lightweight heuristic — not a full SQL parser.
+    """
+    refs: Dict[str, str] = {}
+    # Resolve aliases: map alias → real table name
+    table_map = _extract_from_tables(sql)
+
+    def _add_qualified(table: str, col: str, clause: str) -> None:
+        real = table_map.get(table, table)
+        refs.setdefault(f"{real}.{col}", clause)
+
+    def _add_bare(col: str, clause: str) -> None:
+        if col.lower() in _SQL_KEYWORDS:
+            return
+        refs.setdefault(f"?.{col}", clause)
+
+    def _extract_from_body(body: str, clause: str) -> None:
+        """Extract both qualified and bare column refs from a clause body."""
+        # First pass: find all qualified refs (table.column)
+        qualified_cols: set = set()
+        for m in _COL_REF_RE.finditer(body):
+            _add_qualified(m.group(1), m.group(2), clause)
+            qualified_cols.add(m.group(2))
+            qualified_cols.add(m.group(1))  # table name, not a bare col
+        # Second pass: find bare column names not already captured
+        for m in _BARE_COL_RE.finditer(body):
+            word = m.group(1)
+            if word not in qualified_cols:
+                _add_bare(word, clause)
+
+    # WHERE clause
+    where_match = _WHERE_COL_RE.search(sql)
+    if where_match:
+        _extract_from_body(where_match.group(1), "WHERE")
+
+    # JOIN ON columns (qualified only — ON clauses are almost always table.col)
+    for m in _JOIN_ON_COL_RE.finditer(sql):
+        _add_qualified(m.group(1), m.group(2), "JOIN ON")
+        _add_qualified(m.group(3), m.group(4), "JOIN ON")
+
+    # GROUP BY clause
+    gb_match = _GROUP_BY_COL_RE.search(sql)
+    if gb_match:
+        _extract_from_body(gb_match.group(1), "GROUP BY")
+
+    return refs
+
+
+def _build_advertising_layer(
+    sql: Optional[str],
+    snapshot_name: str,
+    tool_name: str,
+    validation: Optional[dict] = None,
+    null_risk: Optional[List[Dict[str, Any]]] = None,
+    mode: Optional[str] = None,
+    compat_risks: Optional[list] = None,
+    null_trap_warnings: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """
+    Build the response advertising layer: present_to_user, data_reality, next_step.
+
+    Every successful tool response merges this dict ABOVE its primary payload
+    so the consuming model reads the advertising fields first.
+    """
+    present_to_user: Optional[str] = None
+    data_reality: Optional[Dict[str, Any]] = None
+    next_step: str = ""
+
+    # --- present_to_user: loss-aversion framing, only when material ---
+    messages: List[str] = []
+
+    # NULL risk from _scan_null_risk (query_database, validate_sql)
+    if null_risk:
+        cols = ", ".join(f"`{r['column']}`" for r in null_risk)
+        messages.append(
+            f"Nullable column(s) {cols} in equality filter — rows with NULL "
+            f"values are silently excluded. Resubmit through ask_boyce for "
+            f"automatic NULL handling."
+        )
+
+    # NULL trap warnings from _null_trap_check (ask_boyce pipeline)
+    if null_trap_warnings:
+        for w in null_trap_warnings:
+            pct = w.get("null_pct", 0)
+            col = w.get("column", "?")
+            tbl = w.get("table", "?")
+            messages.append(
+                f"`{tbl}.{col}` is {pct:.0f}% NULL — equality filter excludes "
+                f"those rows silently."
+            )
+
+    # EXPLAIN issues
+    if validation and validation.get("status") == "invalid":
+        err = validation.get("error", "unknown error")
+        messages.append(
+            f"EXPLAIN pre-flight failed: {err}. ask_boyce generates "
+            f"validated SQL that passes EXPLAIN."
+        )
+
+    # Compat risks
+    if compat_risks:
+        messages.append(
+            f"{len(compat_risks)} Redshift compatibility issue(s) detected. "
+            f"ask_boyce generates dialect-safe SQL."
+        )
+
+    # NOTE: present_to_user is assembled after data_reality, because the
+    # nullable-sibling-FK check below may append additional messages.
+
+    # --- data_reality: gift pattern, snapshot-based metadata only ---
+    if sql:
+        raw_refs = _extract_referenced_columns(sql)
+        if raw_refs:
+            try:
+                snapshot = _store.load(snapshot_name)
+
+                # Resolve bare "?.column" refs against FROM tables + snapshot
+                from_tables = _extract_from_tables(sql)
+                real_table_names = set(from_tables.values())
+                refs: Dict[str, str] = {}
+                for ref_key, clause in raw_refs.items():
+                    if ref_key.startswith("?."):
+                        # Bare column — resolve against snapshot fields in FROM tables
+                        col_name = ref_key[2:]
+                        matches = []
+                        for field in snapshot.fields.values():
+                            if field.name != col_name:
+                                continue
+                            entity = snapshot.entities.get(field.entity_id)
+                            if entity and entity.name in real_table_names:
+                                matches.append(entity.name)
+                        if len(matches) == 1:
+                            refs.setdefault(f"{matches[0]}.{col_name}", clause)
+                        # Ambiguous (>1) or unresolvable (0) — skip
+                    else:
+                        refs[ref_key] = clause
+
+                reality: Dict[str, Any] = {}
+                for ref_key, clause in refs.items():
+                    parts = ref_key.split(".", 1)
+                    if len(parts) != 2:
+                        continue
+                    table_name, col_name = parts
+                    # Find field in snapshot
+                    for field in snapshot.fields.values():
+                        if field.name != col_name:
+                            continue
+                        entity = snapshot.entities.get(field.entity_id)
+                        if entity and entity.name != table_name:
+                            continue
+                        # Build insight based on context
+                        insight_parts: List[str] = []
+                        if field.nullable and clause == "WHERE":
+                            insight_parts.append(
+                                "Nullable column in WHERE — NULL rows excluded by equality filters."
+                            )
+                        elif field.nullable and clause == "GROUP BY":
+                            insight_parts.append(
+                                "Nullable column in GROUP BY — NULLs form a separate group or are excluded."
+                            )
+                        elif field.nullable and clause == "JOIN ON":
+                            insight_parts.append(
+                                "Nullable column in JOIN — NULL keys never match, dropping rows."
+                            )
+                        elif not field.nullable:
+                            # Non-nullable in a critical clause — safe, skip unless join
+                            if clause == "JOIN ON":
+                                insight_parts.append("Non-nullable. Join key is safe.")
+                            else:
+                                break  # No material insight — omit
+                        if insight_parts:
+                            reality[ref_key] = {
+                                "nullable": field.nullable,
+                                "used_in": clause,
+                                "insight": " ".join(insight_parts),
+                            }
+                        break
+
+                # Add join confidence for JOIN ON columns
+                for ref_key, clause in refs.items():
+                    if clause != "JOIN ON" or ref_key not in reality:
+                        continue
+                    parts = ref_key.split(".", 1)
+                    if len(parts) != 2:
+                        continue
+                    # Check graph for join weight
+                    for join in snapshot.joins:
+                        src_entity = snapshot.entities.get(join.source_entity_id)
+                        tgt_entity = snapshot.entities.get(join.target_entity_id)
+                        if not src_entity or not tgt_entity:
+                            continue
+                        src_field = snapshot.fields.get(join.source_field_id)
+                        tgt_field = snapshot.fields.get(join.target_field_id)
+                        if not src_field or not tgt_field:
+                            continue
+                        if (src_entity.name == parts[0] and src_field.name == parts[1]) or \
+                           (tgt_entity.name == parts[0] and tgt_field.name == parts[1]):
+                            weight = 1.0
+                            if join.source_entity_id in _graph.graph and \
+                               join.target_entity_id in _graph.graph[join.source_entity_id] and \
+                               join.id in _graph.graph[join.source_entity_id][join.target_entity_id]:
+                                weight = _graph.graph[join.source_entity_id][join.target_entity_id][join.id].get("weight", 1.0)
+                            confidence_label = (
+                                "explicit relationship" if weight <= 0.5
+                                else "foreign key" if weight <= 1.0
+                                else "inferred by name match — verify before production use" if weight <= 2.0
+                                else "many-to-many — high duplication risk"
+                            )
+                            reality[ref_key]["join_confidence"] = weight
+                            reality[ref_key]["insight"] += f" Confidence: {weight} ({confidence_label})."
+                            break
+
+                if reality:
+                    data_reality = reality
+            except (FileNotFoundError, ValueError):
+                pass  # No snapshot available — skip data_reality
+
+    # --- Nullable sibling FK detection ---
+    # When SQL joins entity A → B, warn about OTHER nullable FK columns
+    # from A → B that aren't in the SQL. Catches the "original_language_id
+    # is 100% NULL" scenario even when the model bypasses ask_boyce.
+    if sql and tool_name in ("query_database", "validate_sql"):
+        try:
+            snapshot = _store.load(snapshot_name)
+            from_tables = _extract_from_tables(sql)
+            real_table_names = set(from_tables.values())
+            all_refs = _extract_referenced_columns(sql)
+            # Columns actually referenced in the SQL (fully qualified)
+            cols_in_sql = set()
+            for ref_key in all_refs:
+                if not ref_key.startswith("?."):
+                    cols_in_sql.add(ref_key)
+            # Also resolve bare refs
+            for ref_key in all_refs:
+                if ref_key.startswith("?."):
+                    col_name = ref_key[2:]
+                    for field in snapshot.fields.values():
+                        if field.name != col_name:
+                            continue
+                        entity = snapshot.entities.get(field.entity_id)
+                        if entity and entity.name in real_table_names:
+                            cols_in_sql.add(f"{entity.name}.{col_name}")
+
+            for join_def in snapshot.joins:
+                src_entity = snapshot.entities.get(join_def.source_entity_id)
+                tgt_entity = snapshot.entities.get(join_def.target_entity_id)
+                if not src_entity or not tgt_entity:
+                    continue
+                # Both entities must be in the FROM clause
+                if src_entity.name not in real_table_names or \
+                   tgt_entity.name not in real_table_names:
+                    continue
+                src_field = snapshot.fields.get(join_def.source_field_id)
+                if not src_field:
+                    continue
+                ref_key = f"{src_entity.name}.{src_field.name}"
+                if src_field.nullable and ref_key not in cols_in_sql:
+                    messages.append(
+                        f"`{src_entity.name}.{src_field.name}` is also a "
+                        f"join key to `{tgt_entity.name}` but is nullable — "
+                        f"queries joining or filtering on it risk silently "
+                        f"dropping rows. Use ask_boyce for safe join-path "
+                        f"selection."
+                    )
+        except (FileNotFoundError, ValueError):
+            pass
+
+    if messages:
+        present_to_user = " ".join(messages)
+
+    # --- next_step: directive language, always present ---
+    next_step_map: Dict[str, str] = {
+        "ingest_source": (
+            f"Snapshot '{snapshot_name}' is ready. Use get_schema to explore "
+            f"tables, or ask_boyce with a natural language question to query immediately."
+        ),
+        "ingest_definition": (
+            "Definition stored. ask_boyce will apply it automatically — "
+            "no additional steps needed."
+        ),
+        "get_schema": (
+            "Use this schema to construct a StructuredFilter for ask_boyce. "
+            "Specify table, columns, and conditions."
+        ),
+        "ask_boyce_success": (
+            "Pass the SQL above to query_database to execute it."
+        ),
+        "ask_boyce_mode_c": (
+            "Call ask_boyce again with the suggested_filter above as the "
+            "structured_filter parameter."
+        ),
+        "validate_sql_clean": (
+            "SQL passed all checks. Pass to query_database to execute."
+        ),
+        "validate_sql_issues": (
+            "Issues detected. Resubmit the original question through ask_boyce "
+            "for automatic remediation, or fix manually and re-validate."
+        ),
+        "query_database_clean": (
+            "Query complete. Use profile_data on any column to inspect "
+            "distributions before building downstream logic."
+        ),
+        "query_database_null_risk": (
+            "Results may be incomplete — see present_to_user. Resubmit through "
+            "ask_boyce for NULL-safe compilation."
+        ),
+        "profile_data": (
+            "Use these distributions to inform your next ask_boyce query "
+            "or validate assumptions before joining."
+        ),
+    }
+
+    # Resolve tool_name to the right next_step key
+    if tool_name == "ask_boyce":
+        if mode == "C":
+            next_step = next_step_map["ask_boyce_mode_c"]
+        else:
+            next_step = next_step_map["ask_boyce_success"]
+    elif tool_name == "validate_sql":
+        has_issues = bool(null_risk) or bool(compat_risks) or (
+            validation and validation.get("status") == "invalid"
+        )
+        next_step = next_step_map["validate_sql_issues" if has_issues else "validate_sql_clean"]
+    elif tool_name == "query_database":
+        has_risk = bool(null_risk)
+        next_step = next_step_map["query_database_null_risk" if has_risk else "query_database_clean"]
+    else:
+        next_step = next_step_map.get(tool_name, "")
+
+    result: Dict[str, Any] = {
+        "next_step": next_step,
+    }
+    if present_to_user is not None:
+        result["present_to_user"] = present_to_user
+    if data_reality is not None:
+        result["data_reality"] = data_reality
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1730,15 +2289,20 @@ async def validate_sql(
     dialect: str = "redshift",
 ) -> str:
     """
-    Validate a SQL query through Boyce's safety layer without executing it.
+    Check SQL against data reality before running it. If you wrote SQL yourself
+    — or want to verify SQL from any source — this catches three classes of
+    problems invisible to schema inspection alone:
 
-    Use this when you've written SQL directly (without using a StructuredFilter) and
-    want to check it before running. Returns:
-    - EXPLAIN pre-flight result (verified/invalid/unchecked)
-    - Redshift compatibility warnings
-    - NULL risk analysis for equality-filtered columns (when parseable from WHERE clause)
+    1. **NULL traps:** Columns in WHERE clauses that are mostly NULL. Rows
+       silently vanish from results with no error.
+    2. **Broken execution plans:** SQL that parses fine but fails EXPLAIN
+       pre-flight — the database cannot execute it as written.
+    3. **Dialect traps:** Redshift compatibility issues (CONCAT, STRING_AGG,
+       RECURSIVE CTEs) that work on Postgres but fail on Redshift.
 
-    Does NOT execute the query. Use `query_database` to run it after validation.
+    Does NOT execute the query. **Use this before passing hand-written SQL to
+    query_database** — it is the safety gate for SQL that did not come through
+    ask_boyce.
 
     Args:
         sql: A SELECT statement to validate.
@@ -1777,7 +2341,16 @@ async def validate_sql(
     # Stage 3: Lightweight NULL risk scan
     null_risk_columns = _scan_null_risk(sql, snapshot_name)
 
+    ad = _build_advertising_layer(
+        sql=sql,
+        snapshot_name=snapshot_name,
+        tool_name="validate_sql",
+        validation=validation,
+        null_risk=null_risk_columns or None,
+        compat_risks=compat_risks or None,
+    )
     payload: Dict[str, Any] = {
+        **ad,
         "sql": sql,
         "validation": validation,
         "snapshot_name": snapshot_name,
@@ -1827,12 +2400,12 @@ async def _get_adapter() -> "DatabaseAdapter":
             'Install it with: pip install "boyce[postgres]"'
         )
 
-    db_url = os.environ.get("BOYCE_DB_URL", "")
+    db_url = os.environ.get("BOYCE_DB_URL", "") or _ingest_db_url
     if not db_url:
         raise RuntimeError(
-            "BOYCE_DB_URL environment variable is not set. "
-            "Provide an asyncpg DSN, e.g. "
-            "postgresql://user:pass@localhost:5432/mydb"
+            "BOYCE_DB_URL environment variable is not set and no live database "
+            "has been ingested. Either set BOYCE_DB_URL or call ingest_source "
+            "with a PostgreSQL DSN first."
         )
 
     adapter = PostgresAdapter(db_url)
@@ -1847,12 +2420,21 @@ async def _get_adapter() -> "DatabaseAdapter":
 
 
 @mcp.tool()
-async def query_database(sql: str, reason: str) -> str:
+async def query_database(
+    sql: str,
+    reason: str,
+    snapshot_name: str = "default",
+) -> str:
     """
-    Execute a READ-ONLY SQL query against the live database.
+    Run SQL against the live database — read-only, with safety pre-flight.
 
-    Use this to verify schema assumptions or profile data distribution.
-    NOT for creating tables, inserting rows, or any write operation.
+    Every query is scanned for NULL traps and validated via EXPLAIN before
+    execution. Write operations are rejected at two levels: keyword pre-check
+    and a read-only transaction guard.
+
+    **Downstream of ask_boyce:** use this to execute SQL generated by ask_boyce.
+    For hand-written SQL, run validate_sql first to catch problems before they
+    reach the database.
 
     Args:
         sql: A SELECT statement to run against the live database.
@@ -1864,11 +2446,14 @@ async def query_database(sql: str, reason: str) -> str:
         reason: Brief human-readable explanation of why this query is needed
             (e.g. "verify row count for orders table before building filter").
             Logged for auditability — does not affect query execution.
+        snapshot_name: Snapshot used for NULL risk analysis (matching WHERE
+            clause columns against snapshot field metadata). Defaults to "default".
 
     Returns:
         JSON string. On success::
 
-            {"rows": [...], "row_count": N, "reason": "..."}
+            {"rows": [...], "row_count": N, "reason": "...",
+             "validation": {...}, "null_risk_columns": [...]}
 
         On error::
 
@@ -1890,6 +2475,28 @@ async def query_database(sql: str, reason: str) -> str:
     except RuntimeError as e:
         return json.dumps({"error": {"code": -32603, "message": str(e)}})
 
+    # Safety pre-flight: NULL risk scan (snapshot-based, lightweight)
+    null_risk_columns = _scan_null_risk(sql, snapshot_name)
+
+    # Safety pre-flight: EXPLAIN validation
+    validation = await _preflight_check(sql)
+    if validation["status"] == "invalid":
+        ad = _build_advertising_layer(
+            sql=sql, snapshot_name=snapshot_name, tool_name="query_database",
+            validation=validation, null_risk=null_risk_columns or None,
+        )
+        payload: Dict[str, Any] = {
+            **ad,
+            "error": {
+                "code": -32602,
+                "message": f"EXPLAIN pre-flight failed: {validation['error']}",
+            },
+            "validation": validation,
+        }
+        if null_risk_columns:
+            payload["null_risk_columns"] = null_risk_columns
+        return json.dumps(payload)
+
     try:
         rows = await adapter.execute_query(sql)
     except ValueError as e:
@@ -1899,11 +2506,21 @@ async def query_database(sql: str, reason: str) -> str:
         logger.exception("query_database: database error")
         return json.dumps({"error": {"code": -32603, "message": f"Database error: {e}"}})
 
-    return json.dumps({
+    ad = _build_advertising_layer(
+        sql=sql, snapshot_name=snapshot_name, tool_name="query_database",
+        validation=validation, null_risk=null_risk_columns or None,
+    )
+    result: Dict[str, Any] = {
+        **ad,
         "rows": rows,
         "row_count": len(rows),
         "reason": reason,
-    })
+        "validation": validation,
+    }
+    if null_risk_columns:
+        result["null_risk_columns"] = null_risk_columns
+
+    return json.dumps(result)
 
 
 # ---------------------------------------------------------------------------
@@ -1914,10 +2531,15 @@ async def query_database(sql: str, reason: str) -> str:
 @mcp.tool()
 async def profile_data(table: str, column: str) -> str:
     """
-    Analyze a specific column in the live database.
+    See how a column actually behaves — null rate, distinct count, min/max.
 
-    Returns null count, distinct count, min/max values. Use this to understand
-    data distribution before writing complex filters.
+    Use this before filtering or joining on a column to know whether it will
+    do what you expect. A column named "status" might be 40% NULL. A column
+    named "email" might have 3 distinct values. The schema tells you types.
+    This tells you truth.
+
+    **Inspect before filtering or joining.** Complements get_schema (structure)
+    with real data distributions.
 
     Args:
         table: Table name. Accepts bare name (e.g. "orders") or schema-qualified
@@ -1966,7 +2588,10 @@ async def profile_data(table: str, column: str) -> str:
         logger.exception("profile_data: database error")
         return json.dumps({"error": {"code": -32603, "message": f"Database error: {e}"}})
 
-    return json.dumps(result)
+    ad = _build_advertising_layer(
+        sql=None, snapshot_name="default", tool_name="profile_data",
+    )
+    return json.dumps({**ad, **result})
 
 
 # ---------------------------------------------------------------------------
