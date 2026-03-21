@@ -105,6 +105,7 @@ class MCPHost:
     has_boyce: bool
     servers_key: str = "mcpServers"
     post_config_note: Optional[str] = None
+    entry_extra: Optional[Dict[str, str]] = None
 
 
 def _claude_desktop_path() -> Path:
@@ -185,6 +186,7 @@ def _host_specs() -> List[Dict]:
             "project_level": True,
             "servers_key": "servers",
             "installed_check": _is_vscode_installed,
+            "entry_extra": {"type": "stdio"},
         },
         {
             "name": "JetBrains / DataGrip",
@@ -240,6 +242,7 @@ def detect_hosts(specs: Optional[List[Dict]] = None) -> List[MCPHost]:
             has_boyce=has_boyce,
             servers_key=servers_key,
             post_config_note=spec.get("post_config_note"),
+            entry_extra=spec.get("entry_extra"),
         ))
 
     return hosts
@@ -826,7 +829,8 @@ def _build_and_write_configs(
     success: List[MCPHost] = []
     for host in editors:
         try:
-            merge_config(host.config_path, server_entry, servers_key=host.servers_key)
+            entry = {**server_entry, **host.entry_extra} if host.entry_extra else server_entry
+            merge_config(host.config_path, entry, servers_key=host.servers_key)
             print(f"  ✓ {host.name}  →  {host.config_path}")
             if host.post_config_note:
                 print(host.post_config_note)
