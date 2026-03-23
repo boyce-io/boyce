@@ -55,7 +55,7 @@ which boyce          # e.g. /Users/willwright/.local/bin/boyce
 4. Test: ask Claude "Use boyce to show me what tables are available" or run `get_schema`
 
 **What to verify:**
-- MCP tools appear (7 tools: `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce`, `validate_sql`, `query_database`, `profile_data`)
+- MCP tools appear (8 tools: `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce`, `validate_sql`, `query_database`, `profile_data`, `check_health`)
 - `get_schema` returns the Pagila schema after ingesting a snapshot
 - A plain-English query produces SQL
 

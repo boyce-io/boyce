@@ -98,7 +98,7 @@ git add -A
 git commit -m "release: Boyce vX.Y.Z — first public release
 
 Deterministic SQL compiler and semantic protocol for agentic database workflows.
-7 MCP tools, 10 source parsers, NULL trap detection, EXPLAIN pre-flight.
+8 MCP tools, 10 source parsers, NULL trap detection, EXPLAIN pre-flight.
 MIT licensed."
 
 git tag -a vX.Y.Z -m "Boyce vX.Y.Z — first public release"
@@ -207,7 +207,7 @@ pip install boyce
 
 ## What's In This Release
 
-- **7 MCP tools:** `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce`, `validate_sql`, `query_database`, `profile_data`
+- **8 MCP tools:** `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce`, `validate_sql`, `query_database`, `profile_data`, `check_health`
 - **10 source parsers:** dbt manifest, dbt project, LookML, raw DDL, SQLite, Django, SQLAlchemy, Prisma, CSV, Parquet
 - **Deterministic SQL kernel:** Same inputs → same SQL, byte-for-byte, every time. Zero LLM in the compiler.
 - **NULL Trap detection:** Profiles equality-filtered columns for NULL hazards before the query runs.

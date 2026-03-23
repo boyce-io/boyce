@@ -167,6 +167,7 @@ generation still works; EXPLAIN pre-flight and live query tools return `"status"
 | `validate_sql` | Validate hand-written SQL — EXPLAIN pre-flight, Redshift lint, NULL risk — without executing. |
 | `query_database` | Execute a read-only `SELECT` against the live database. Write operations rejected at two independent layers. |
 | `profile_data` | Null %, distinct count, min/max for any column — surface data quality issues before they affect query results. |
+| `check_health` | Operational health check — DB connectivity, snapshot freshness, actionable fix commands. Call when queries fail unexpectedly. |
 
 ---
 
@@ -275,12 +276,14 @@ See `boyce/tests/live_fire/mock_snapshot.json` for a complete field/entity examp
 ```
 boyce/                          ← PRIMARY — headless FastMCP server + pip package
 ├── boyce/
-│   ├── server.py               ← MCP entry point (7 tools)
+│   ├── server.py               ← MCP entry point (8 tools)
 │   ├── kernel.py               ← Deterministic SQL kernel
 │   ├── graph.py                ← SemanticGraph (NetworkX)
 │   ├── safety.py               ← Redshift compatibility rails
 │   ├── types.py                ← Protocol contract (Pydantic)
 │   ├── scan.py                 ← Scan CLI (boyce scan)
+│   ├── connections.py          ← DSN persistence (ConnectionStore)
+│   ├── doctor.py               ← Environment diagnostics (boyce doctor)
 │   ├── sql/                    ← SQLBuilder, dialect layer, join resolver
 │   ├── parsers/                ← 10 parsers (dbt, lookml, ddl, sqlite, csv, etc.)
 │   ├── planner/                ← QueryPlanner (LiteLLM → StructuredFilter)
@@ -310,6 +313,8 @@ _management_documents/          ← Architecture docs and decision records
 | Snapshot persistence across restarts | Operational |
 | Audit logging (append-only JSONL) | Operational |
 | Business definitions (`ingest_definition`) | Operational |
+| DSN persistence (`ConnectionStore`) | Operational |
+| Environment diagnostics (`boyce doctor` / `check_health`) | Operational |
 | Multi-snapshot merge | Planned |
 
 ---

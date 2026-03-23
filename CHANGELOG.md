@@ -13,7 +13,7 @@ First functional release. `0.0.1` was a PyPI namespace placeholder only.
 
 ### Added
 
-- **7 MCP tools** via FastMCP stdio server:
+- **8 MCP tools** via FastMCP stdio server:
   - `ingest_source` — parse SemanticSnapshot from dbt manifest, dbt project, LookML, DDL, SQLite, Django, SQLAlchemy, Prisma, CSV, Parquet (10 parsers, auto-detected)
   - `ingest_definition` — store certified business definitions, auto-injected at query time
   - `get_schema` — return full schema context + StructuredFilter documentation for host-LLM reasoning
@@ -21,6 +21,7 @@ First functional release. `0.0.1` was a PyPI namespace placeholder only.
   - `validate_sql` — EXPLAIN pre-flight + Redshift lint + NULL risk analysis without executing
   - `query_database` — read-only SELECT execution against live database (write rejection at two layers)
   - `profile_data` — column profiling: null %, distinct count, min/max
+  - `check_health` — operational diagnostics: DB connectivity, snapshot freshness, actionable fix commands
 - **`boyce-init` setup wizard** — auto-detects and configures 6 MCP host platforms: Claude Desktop, Cursor, Claude Code, VS Code, JetBrains/DataGrip, Windsurf
 - **`boyce-scan` CLI** — walks directories, auto-detects all parseable sources, produces JSON report
 - **`boyce ask "..."` CLI** — NL→SQL, output to stdout (requires `BOYCE_PROVIDER` + `BOYCE_MODEL`)

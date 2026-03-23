@@ -55,6 +55,6 @@ Telemetry will follow the Homebrew / Terraform / Ruff model:
 ## Acceptance Criteria (Phase 1 only)
 - [ ] `_telemetry.py` exists with `record()` function
 - [ ] `record()` is no-op when `BOYCE_TELEMETRY` is unset or not `on`
-- [ ] Call sites added in `server.py` for all 7 MCP tools
+- [ ] Call sites added in `server.py` for all 8 MCP tools
 - [ ] No network calls, no file writes, no side effects when off
 - [ ] Tests confirm no-op behavior

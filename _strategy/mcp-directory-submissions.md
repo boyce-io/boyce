@@ -47,7 +47,7 @@ filter on a column with 30% NULLs silently drops those rows — and the agent ne
 LLM reads the schema via `get_schema`, constructs a query, and Boyce compiles deterministic
 SQL. Zero configuration beyond `pip install boyce`.
 
-**7 MCP tools:** `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce`, `validate_sql`, `query_database`, `profile_data`
+**8 MCP tools:** `ingest_source`, `ingest_definition`, `get_schema`, `ask_boyce`, `validate_sql`, `query_database`, `profile_data`, `check_health`
 
 **10 source parsers:** dbt manifest, dbt project, LookML, raw DDL, SQLite, Django, SQLAlchemy,
 Prisma, CSV, Parquet — auto-detected via `boyce scan`

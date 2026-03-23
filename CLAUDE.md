@@ -309,7 +309,7 @@ npm run lint
 | File | Purpose |
 |------|---------|
 | `src/extension.ts` | Main entry — 5 commands, status bar, schema tree registration |
-| `src/client.ts` | `BoyceClient` — typed HTTP client for all 8 HTTP endpoints (7 MCP tools + `/health`) |
+| `src/client.ts` | `BoyceClient` — typed HTTP client for 8 HTTP endpoints (7 of 8 MCP tools + `/health`; `check_health` not yet wired) |
 | `src/process.ts` | `BoyceProcess` — auto-spawns `boyce serve --http`, health polling, graceful shutdown |
 | `src/types.ts` | TypeScript interfaces mirroring `boyce.http_api` + `boyce.types` contracts |
 | `src/panels/chatPanel.ts` | Webview chat panel — NL input → `/chat` → rendered SQL with "Run SQL" buttons |
