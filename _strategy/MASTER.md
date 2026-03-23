@@ -396,20 +396,16 @@ each is 2-3 posts of material.
 Fixes applied: CLI convention (boyce init/scan), tool count (7 not 8), build_sql/solve_path
 references removed, DataGrip + Codex added to all platform lists, support email verified.
 Commits: `e709847` (README), `7e94110` (llms.txt), `79654d7` (sites), `6e3eab2` (gitignore + pyproject + support).
-**Stale as of 2026-03-21:** Lifecycle management shipped — tool count is now 8 (check_health added),
-`boyce doctor` CLI is new, init has non-interactive flags, `ready_filter` replaces `suggested_filter`
-in Mode C docs, DataGrip is a named first-class platform (not generic "JetBrains").
-All 8 surfaces need a refresh pass before publish.
+**Refreshed 2026-03-23:** All 8 surfaces updated for lifecycle management additions:
+tool count 7→8, check_health added, boyce doctor documented, ready_filter replaces
+suggested_filter, DataGrip named as first-class platform.
+Commits: `e3c067a` (Boyce repo), `1f2057f` (convergent-methods-sites).
 
+- [x] Review all 8 public surfaces for accuracy and consistency ✓ (2026-03-23)
+- [x] Verify DataGrip, Codex, and all v0.1 platforms named on integration pages ✓
+- [x] Verify `boyce init` / `boyce scan` subcommand convention consistent ✓
+- [x] Verify Null Trap essay linked from README ✓
 - [ ] Draft 3-4 launch-day social posts (Stage 2.5 above — short-form, high leverage)
-- [ ] Review all 8 public surfaces for accuracy and consistency:
-      PyPI page, convergentmethods.com, convergentmethods.com/boyce/,
-      /boyce/null-trap/, /boyce/docs/, GitHub boyce-io/boyce README,
-      GitHub ConvergentMethods org, llms.txt + llms-full.txt
-- [ ] Verify DataGrip (explicitly, not just "JetBrains"), Codex, and all v0.1 platforms
-      are named on integration pages — DataGrip is a day-one platform, not a footnote
-- [ ] Verify `boyce init` / `boyce scan` subcommand convention is consistent everywhere
-- [ ] Verify Null Trap essay is linked from README
 
 **Planned Publication: "The Arrogant Agent Problem"**
 
