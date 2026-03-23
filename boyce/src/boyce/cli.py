@@ -6,8 +6,9 @@ Usage:
     boyce ask "query" [OPTIONS]            Direct NL → SQL (uses ask_boyce pipeline)
     boyce chat "message" [OPTIONS]         Conversational mode
     boyce serve --http [--port N]          Start HTTP API server
-    boyce init                             Setup wizard — configure editors, DB, data sources
+    boyce init [OPTIONS]                   Setup wizard — configure editors, DB, data sources
     boyce scan <path> [-o FILE]            Scan a file or directory for data schemas
+    boyce doctor [--json]                  Check environment health (editors, DB, snapshots)
 
 Options for ask / chat:
     --snapshot NAME    Snapshot name (default: "default")
@@ -224,14 +225,35 @@ def _parse_args(argv: list) -> tuple:
         return ("serve", {"port": port})
 
     if subcmd == "init":
-        return ("init", {})
+        init_kwargs: dict = {
+            "non_interactive": "--non-interactive" in argv,
+            "json_output": "--json" in argv,
+            "skip_db": "--skip-db" in argv,
+            "skip_sources": "--skip-sources" in argv,
+            "skip_existing": "--skip-existing" in argv,
+            "editors": None,
+            "db_url": None,
+        }
+        if "--editors" in argv:
+            idx = argv.index("--editors")
+            if idx + 1 < len(argv):
+                init_kwargs["editors"] = argv[idx + 1]
+        if "--db-url" in argv:
+            idx = argv.index("--db-url")
+            if idx + 1 < len(argv):
+                init_kwargs["db_url"] = argv[idx + 1]
+        return ("init", init_kwargs)
 
     if subcmd == "scan":
         # Pass remaining args through to scan's own argparse
         return ("scan", {"argv": argv[1:]})
 
+    if subcmd == "doctor":
+        json_flag = "--json" in argv
+        return ("doctor", {"json": json_flag})
+
     # Unknown subcommand — print error rather than silently starting MCP server
-    return ("error", {"msg": f"Unknown command: '{subcmd}'\nUsage: boyce [ask|chat|init|scan|serve] ...\nRun 'boyce --help' for full usage."})
+    return ("error", {"msg": f"Unknown command: '{subcmd}'\nUsage: boyce [ask|chat|doctor|init|scan|serve] ...\nRun 'boyce --help' for full usage."})
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +301,12 @@ def main() -> None:
 
     if subcmd == "init":
         from .init_wizard import run_wizard  # noqa: PLC0415
-        sys.exit(run_wizard())
+        sys.exit(run_wizard(**kwargs))
+
+    if subcmd == "doctor":
+        from .doctor import run_doctor  # noqa: PLC0415
+        code = asyncio.run(run_doctor(json_output=kwargs["json"]))
+        sys.exit(code)
 
     if subcmd == "scan":
         from .scan import main as scan_main  # noqa: PLC0415

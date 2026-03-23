@@ -38,6 +38,7 @@ from .graph import SemanticGraph
 from .planner import QueryPlanner
 from .safety import lint_redshift_compat
 from .audit import AuditLog
+from .connections import ConnectionStore
 from .store import DefinitionStore, SnapshotStore
 from .types import SemanticSnapshot
 from .validation import validate_snapshot
@@ -332,6 +333,7 @@ mcp = FastMCP(
 _LOCAL_CONTEXT = Path("_local_context")
 _store = SnapshotStore(_LOCAL_CONTEXT)
 _definitions = DefinitionStore(_LOCAL_CONTEXT)
+_connections = ConnectionStore(_LOCAL_CONTEXT)
 _audit = AuditLog(_LOCAL_CONTEXT)
 _graph = SemanticGraph()
 
@@ -354,6 +356,8 @@ _OPERATOR_ALIASES: Dict[str, str] = {
 _adapter: "DatabaseAdapter | None" = None
 # DSN stored from ingest_source live-DB path; used as fallback when BOYCE_DB_URL is not set.
 _ingest_db_url: str = ""
+# First-call-per-session flag for environment suggestions.
+_environment_checked: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -782,10 +786,10 @@ def _build_schema_guidance(
     result: dict = {
         "mode": "schema_guidance",
         "message": (
-            "Here is a suggested StructuredFilter for your query.  "
-            "Call ask_boyce again with structured_filter set to the "
-            "suggested_filter below.  You may adjust it first or pass "
-            "it directly — no additional credentials are needed."
+            "Ready-to-use filter constructed from your query.  "
+            "Call ask_boyce(structured_filter=ready_filter) to compile "
+            "validated SQL with NULL trap detection and EXPLAIN pre-flight.  "
+            "No modification needed, no credentials required.  One call."
         ),
         "query": query,
         "snapshot_name": snapshot_name,
@@ -794,7 +798,7 @@ def _build_schema_guidance(
         "definitions_context": definitions_context or None,
     }
     if suggested:
-        result["suggested_filter"] = suggested
+        result["ready_filter"] = suggested
     ad = _build_advertising_layer(
         sql=None, snapshot_name=snapshot_name, tool_name="ask_boyce", mode="C",
     )
@@ -902,7 +906,7 @@ async def _check_db_drift(snapshot_name: str) -> Optional[Dict[str, Any]]:
     _drift_checked.add(snapshot_name)
 
     try:
-        adapter = await _get_adapter()
+        adapter = await _get_adapter(snapshot_name)
     except RuntimeError:
         return None  # No DB configured
 
@@ -1145,6 +1149,7 @@ async def ingest_source(
                 # without requiring BOYCE_DB_URL to be set separately.
                 global _ingest_db_url
                 _ingest_db_url = source_path
+                _connections.save(snapshot_name, source_path, source="ingest_source")
                 snapshot = _build_snapshot_from_live_db(schema_summary, fk_rows, source_path)
             except Exception as e:
                 return json.dumps({
@@ -1415,8 +1420,15 @@ def get_schema(
     ad = _build_advertising_layer(
         sql=None, snapshot_name=snapshot_name, tool_name="get_schema",
     )
+    fields_count = sum(len(e["fields"]) for e in entities_out)
     result: Dict[str, Any] = {
         **ad,
+        "authority": (
+            f"Complete schema: {len(entities_out)} entities, "
+            f"{fields_count} fields, {len(joins_out)} joins with confidence "
+            f"weights. Reflects full live database as of ingest — no additional "
+            f"metadata queries (information_schema, pg_catalog) needed."
+        ),
         "snapshot_id": snapshot.snapshot_id,
         "snapshot_name": snapshot_name,
         "entities": entities_out,
@@ -1634,22 +1646,21 @@ async def ask_boyce(
     compatibility checks.
 
     If called with a natural language query and no StructuredFilter, Boyce
-    returns a suggested_filter — call ask_boyce again with structured_filter
-    set to the suggested_filter from the response. One extra round-trip,
-    zero configuration.
+    returns a ready_filter — call ask_boyce(structured_filter=ready_filter)
+    to compile validated SQL. One extra round-trip, zero configuration.
 
-    **Mode A — StructuredFilter provided (zero credentials, recommended):**
+    **MCP host path — StructuredFilter provided (zero credentials, recommended):**
         ask_boyce(structured_filter={...}, snapshot_name="default")
         Deterministic SQL pipeline. No LLM needed.
 
-    **Mode B — NL query with LLM credentials configured:**
+    **CLI/HTTP path — NL query with LLM credentials configured:**
         ask_boyce(natural_language_query="revenue by product", snapshot_name="default")
         QueryPlanner translates to StructuredFilter, then deterministic pipeline.
 
-    **Mode C — NL query without credentials:**
+    **Schema guidance fallback — NL query without credentials:**
         ask_boyce(natural_language_query="revenue by product", snapshot_name="default")
-        Returns a suggested_filter — call ask_boyce again with it as
-        structured_filter. Two round-trips, zero configuration.
+        Returns a ready_filter — call ask_boyce(structured_filter=ready_filter).
+        Two round-trips, zero configuration.
 
     **Pass the returned SQL to query_database to execute it.**
 
@@ -1925,6 +1936,64 @@ def _extract_referenced_columns(sql: str) -> Dict[str, str]:
     return refs
 
 
+def _check_environment_suggestions() -> List[str]:
+    """
+    Lightweight first-call-per-session environment check.
+
+    Returns a list of actionable suggestion strings (max 3).
+    Only runs once per server process — subsequent calls return empty.
+    """
+    global _environment_checked
+    if _environment_checked:
+        return []
+    _environment_checked = True
+
+    suggestions: List[str] = []
+
+    # 1. Check if environment.json exists and is recent
+    env_path = _LOCAL_CONTEXT / "environment.json"
+    if env_path.exists():
+        try:
+            import json as _json
+            from datetime import datetime as _dt, timezone as _tz
+            with open(env_path) as f:
+                env_data = _json.load(f)
+            last_doctor = env_data.get("last_doctor", "")
+            if last_doctor:
+                dt = _dt.fromisoformat(last_doctor)
+                age_hours = (_dt.now(_tz.utc) - dt).total_seconds() / 3600
+                if age_hours > 24:
+                    suggestions.append(
+                        "Run `boyce doctor` to check environment health "
+                        f"(last run {age_hours:.0f}h ago)."
+                    )
+        except Exception:
+            pass
+    elif _LOCAL_CONTEXT.exists():
+        # Has snapshots but never ran doctor
+        suggestions.append(
+            "Run `boyce doctor` to check environment health."
+        )
+
+    # 2. Quick snapshot staleness check
+    if _LOCAL_CONTEXT.exists():
+        from datetime import datetime as _dt2, timezone as _tz2
+        for path in _LOCAL_CONTEXT.glob("*.json"):
+            if path.name in ("connections.json", "environment.json") or \
+                    path.name.endswith(".definitions.json"):
+                continue
+            mtime = _dt2.fromtimestamp(path.stat().st_mtime, tz=_tz2.utc)
+            age_hours = (_dt2.now(_tz2.utc) - mtime).total_seconds() / 3600
+            if age_hours > 168:  # 7 days
+                suggestions.append(
+                    f"Snapshot '{path.stem}' is {age_hours / 24:.0f} days old. "
+                    f"Call ingest_source to refresh."
+                )
+                break  # Only flag the first stale snapshot
+
+    return suggestions[:3]  # Noise fatigue protection
+
+
 def _build_advertising_layer(
     sql: Optional[str],
     snapshot_name: str,
@@ -2165,8 +2234,8 @@ def _build_advertising_layer(
             "Pass the SQL above to query_database to execute it."
         ),
         "ask_boyce_mode_c": (
-            "Call ask_boyce again with the suggested_filter above as the "
-            "structured_filter parameter."
+            "Call ask_boyce(structured_filter=ready_filter) now. "
+            "The filter is complete — pass it directly, no changes needed."
         ),
         "validate_sql_clean": (
             "SQL passed all checks. Pass to query_database to execute."
@@ -2213,6 +2282,12 @@ def _build_advertising_layer(
         result["present_to_user"] = present_to_user
     if data_reality is not None:
         result["data_reality"] = data_reality
+
+    # Environment suggestions — first call per session only
+    env_suggestions = _check_environment_suggestions()
+    if env_suggestions:
+        result["environment_suggestions"] = env_suggestions
+
     return result
 
 
@@ -2378,16 +2453,17 @@ async def validate_sql(
 # ---------------------------------------------------------------------------
 
 
-async def _get_adapter() -> "DatabaseAdapter":
+async def _get_adapter(snapshot_name: str = "default") -> "DatabaseAdapter":
     """
     Return the module-level adapter, connecting lazily on first call.
 
-    Requires:
-        BOYCE_DB_URL env var (asyncpg DSN).
-        asyncpg installed:  pip install "boyce[postgres]"
+    DSN resolution order:
+        1. BOYCE_DB_URL env var
+        2. In-memory _ingest_db_url (set during current session by ingest_source)
+        3. Persistent _connections store (survives server restarts)
 
     Raises:
-        RuntimeError: If BOYCE_DB_URL is not set or asyncpg is missing.
+        RuntimeError: If no DSN is available or asyncpg is missing.
     """
     global _adapter
 
@@ -2400,17 +2476,23 @@ async def _get_adapter() -> "DatabaseAdapter":
             'Install it with: pip install "boyce[postgres]"'
         )
 
-    db_url = os.environ.get("BOYCE_DB_URL", "") or _ingest_db_url
+    db_url = (
+        os.environ.get("BOYCE_DB_URL", "")
+        or _ingest_db_url
+        or _connections.load(snapshot_name)
+        or ""
+    )
     if not db_url:
         raise RuntimeError(
-            "BOYCE_DB_URL environment variable is not set and no live database "
-            "has been ingested. Either set BOYCE_DB_URL or call ingest_source "
-            "with a PostgreSQL DSN first."
+            "No database connection available. "
+            "Call check_health to diagnose, or call ingest_source "
+            "with a PostgreSQL DSN to connect."
         )
 
     adapter = PostgresAdapter(db_url)
     await adapter.connect()
     _adapter = adapter
+    _connections.touch(snapshot_name)
     return _adapter
 
 
@@ -2471,12 +2553,42 @@ async def query_database(
     logger.info("query_database called | reason=%r | sql=%r", reason, sql[:200])
 
     try:
-        adapter = await _get_adapter()
+        adapter = await _get_adapter(snapshot_name)
     except RuntimeError as e:
         return json.dumps({"error": {"code": -32603, "message": str(e)}})
 
     # Safety pre-flight: NULL risk scan (snapshot-based, lightweight)
     null_risk_columns = _scan_null_risk(sql, snapshot_name)
+
+    # Live NULL trap profiling for equality-filtered nullable columns.
+    # Reuses the adapter we already connected to. Caps at 3 columns to
+    # bound latency.  Non-fatal — never blocks query execution.
+    live_null_warnings: List[Dict[str, Any]] = []
+    if null_risk_columns:
+        try:
+            for risk in null_risk_columns[:3]:
+                table_name = risk.get("table", "")
+                column_name = risk.get("column", "")
+                if not table_name or not column_name:
+                    continue
+                profile = await adapter.profile_column(table_name, column_name)
+                null_pct = profile.get("null_pct", 0.0)
+                if null_pct > _NULL_TRAP_THRESHOLD_PCT:
+                    live_null_warnings.append({
+                        "table": table_name,
+                        "column": column_name,
+                        "null_pct": null_pct,
+                        "null_count": profile.get("null_count", "?"),
+                        "row_count": profile.get("row_count", "?"),
+                        "risk": (
+                            f"WHERE {column_name} = '...' silently excludes "
+                            f"{profile.get('null_count', '?')} NULL rows "
+                            f"({null_pct:.1f}% of {table_name}). "
+                            f"Those rows vanish without warning."
+                        ),
+                    })
+        except Exception:
+            pass  # Non-fatal — never block query execution on a failed profile
 
     # Safety pre-flight: EXPLAIN validation
     validation = await _preflight_check(sql)
@@ -2484,6 +2596,7 @@ async def query_database(
         ad = _build_advertising_layer(
             sql=sql, snapshot_name=snapshot_name, tool_name="query_database",
             validation=validation, null_risk=null_risk_columns or None,
+            null_trap_warnings=live_null_warnings or None,
         )
         payload: Dict[str, Any] = {
             **ad,
@@ -2495,6 +2608,8 @@ async def query_database(
         }
         if null_risk_columns:
             payload["null_risk_columns"] = null_risk_columns
+        if live_null_warnings:
+            payload["null_trap_warnings"] = live_null_warnings
         return json.dumps(payload)
 
     try:
@@ -2509,7 +2624,22 @@ async def query_database(
     ad = _build_advertising_layer(
         sql=sql, snapshot_name=snapshot_name, tool_name="query_database",
         validation=validation, null_risk=null_risk_columns or None,
+        null_trap_warnings=live_null_warnings or None,
     )
+
+    # Detect metadata table queries — model is duplicating get_schema work
+    sql_lower = sql.lower()
+    if "information_schema" in sql_lower or "pg_catalog" in sql_lower:
+        metadata_note = (
+            "get_schema already provides this metadata enriched with "
+            "join confidence weights, NULL risk flags, and certified "
+            "business definitions that information_schema does not contain."
+        )
+        if ad.get("present_to_user"):
+            ad["present_to_user"] += " " + metadata_note
+        else:
+            ad["present_to_user"] = metadata_note
+
     result: Dict[str, Any] = {
         **ad,
         "rows": rows,
@@ -2519,6 +2649,8 @@ async def query_database(
     }
     if null_risk_columns:
         result["null_risk_columns"] = null_risk_columns
+    if live_null_warnings:
+        result["null_trap_warnings"] = live_null_warnings
 
     return json.dumps(result)
 
@@ -2592,6 +2724,82 @@ async def profile_data(table: str, column: str) -> str:
         sql=None, snapshot_name="default", tool_name="profile_data",
     )
     return json.dumps({**ad, **result})
+
+
+# ---------------------------------------------------------------------------
+# MCP tool: check_health
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def check_health(snapshot_name: str = "default") -> str:
+    """
+    Check Boyce's operational health — database connectivity, snapshot
+    freshness, and schema drift.
+
+    Call this when a query fails unexpectedly, when you suspect stale
+    data, or when Boyce suggests running a health check.  Returns
+    actionable diagnostics with specific fix commands.
+
+    **Use this before debugging query failures yourself.** A failed
+    EXPLAIN or missing table often means the snapshot is stale, not
+    that your SQL is wrong.
+
+    Args:
+        snapshot_name: Snapshot to check health for.  Defaults to "default".
+
+    Returns:
+        JSON with status ("ok" | "warnings" | "errors"), database
+        connectivity, snapshot freshness, server health, and a
+        suggestions list with fix commands.
+    """
+    from .doctor import check_database, check_server, check_snapshots
+
+    db_result = await check_database(_LOCAL_CONTEXT)
+    snap_result = check_snapshots(_LOCAL_CONTEXT)
+    server_result = check_server(_LOCAL_CONTEXT)
+
+    # Aggregate suggestions
+    suggestions: List[str] = []
+    for check in (db_result, snap_result, server_result):
+        for item in check.get("items", []):
+            fix = item.get("fix")
+            if fix:
+                suggestions.append(fix)
+
+    # Overall status
+    statuses = [db_result.get("status", "ok"), snap_result.get("status", "ok"),
+                server_result.get("status", "ok")]
+    if "error" in statuses:
+        status = "errors"
+    elif "warning" in statuses:
+        status = "warnings"
+    else:
+        status = "ok"
+
+    # Build advertising layer
+    ad: Dict[str, Any] = {}
+    if suggestions:
+        ad["next_step"] = f"Fix the most critical issue: {suggestions[0]}"
+        ad["present_to_user"] = (
+            f"Boyce health check found {len(suggestions)} issue(s). "
+            f"Most critical: {suggestions[0]}"
+        )
+    else:
+        ad["next_step"] = (
+            "Environment is healthy. Use get_schema to explore tables, "
+            "or ask_boyce with a natural language question."
+        )
+
+    result = {
+        **ad,
+        "status": status,
+        "database": db_result,
+        "snapshot": snap_result,
+        "server": server_result,
+        "suggestions": suggestions,
+    }
+    return json.dumps(result, default=str)
 
 
 # ---------------------------------------------------------------------------

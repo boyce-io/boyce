@@ -14,10 +14,15 @@ import pytest
 
 from boyce.init_wizard import (
     MCPHost,
+    _CLI_EDITOR_NAMES,
+    _get_existing_db_url,
+    _redact_dsn,
     _resolve_boyce_command,
+    _run_wizard_noninteractive,
     detect_hosts,
     generate_server_entry,
     merge_config,
+    run_wizard,
 )
 
 
@@ -398,3 +403,266 @@ def test_resolve_command_last_resort_is_bare_boyce():
         with patch("sys.executable", "/nonexistent/python"):
             cmd = _resolve_boyce_command()
     assert cmd == "boyce"
+
+
+# ---------------------------------------------------------------------------
+# _redact_dsn
+# ---------------------------------------------------------------------------
+
+
+def test_redact_dsn_hides_password():
+    assert _redact_dsn("postgresql://user:secret@host:5432/db") == "postgresql://user:***@host:5432/db"
+
+
+def test_redact_dsn_no_password():
+    assert _redact_dsn("postgresql://host:5432/db") == "postgresql://host:5432/db"
+
+
+def test_redact_dsn_handles_junk():
+    assert _redact_dsn("not-a-url") == "not-a-url"
+
+
+# ---------------------------------------------------------------------------
+# _get_existing_db_url
+# ---------------------------------------------------------------------------
+
+
+def test_get_existing_db_url_finds_configured_dsn(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({
+        "mcpServers": {
+            "boyce": {
+                "command": "boyce",
+                "env": {"BOYCE_DB_URL": "postgresql://u:p@host/db"}
+            }
+        }
+    }))
+    host = MCPHost(
+        name="Test",
+        config_path=config_path,
+        project_level=True,
+        exists=True,
+        has_boyce=True,
+    )
+    assert _get_existing_db_url([host]) == "postgresql://u:p@host/db"
+
+
+def test_get_existing_db_url_returns_none_when_no_dsn(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({
+        "mcpServers": {"boyce": {"command": "boyce"}}
+    }))
+    host = MCPHost(
+        name="Test",
+        config_path=config_path,
+        project_level=True,
+        exists=True,
+        has_boyce=True,
+    )
+    assert _get_existing_db_url([host]) is None
+
+
+def test_get_existing_db_url_returns_none_when_no_boyce(tmp_path):
+    host = MCPHost(
+        name="Test",
+        config_path=tmp_path / "nonexistent.json",
+        project_level=True,
+        exists=False,
+        has_boyce=False,
+    )
+    assert _get_existing_db_url([host]) is None
+
+
+# ---------------------------------------------------------------------------
+# _CLI_EDITOR_NAMES
+# ---------------------------------------------------------------------------
+
+
+def test_cli_editor_names_covers_all_hosts():
+    """Every host in _host_specs has a CLI name mapping."""
+    from boyce.init_wizard import _host_specs
+    host_names = {spec["name"] for spec in _host_specs()}
+    mapped_names = set(_CLI_EDITOR_NAMES.values())
+    assert host_names == mapped_names
+
+
+# ---------------------------------------------------------------------------
+# Non-interactive mode — _run_wizard_noninteractive
+# ---------------------------------------------------------------------------
+
+
+def test_noninteractive_with_specific_editor(tmp_path):
+    """Non-interactive mode configures a specific editor by CLI name."""
+    specs = _make_specs(tmp_path)
+    # Make Claude Code "exist" by creating its detection hint
+    (tmp_path / ".claude").mkdir()
+
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        code = _run_wizard_noninteractive(
+            editors=["claude_code"],
+            db_url=None,
+            skip_db=True,
+            skip_sources=True,
+            skip_existing=False,
+            json_output=False,
+        )
+    assert code == 0
+    # Verify config was written
+    config = json.loads((tmp_path / ".mcp.json").read_text())
+    assert "boyce" in config["mcpServers"]
+
+
+def test_noninteractive_unknown_editor_exits_1(tmp_path):
+    """Non-interactive mode exits 1 for unknown editor names."""
+    specs = _make_specs(tmp_path)
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        code = _run_wizard_noninteractive(
+            editors=["nonexistent"],
+            db_url=None,
+            skip_db=True,
+            skip_sources=True,
+            skip_existing=False,
+            json_output=False,
+        )
+    assert code == 1
+
+
+def test_noninteractive_skip_existing(tmp_path):
+    """--skip-existing skips already-configured editors."""
+    specs = _make_specs(tmp_path)
+    # Pre-configure Claude Code
+    cc_path = tmp_path / ".mcp.json"
+    cc_path.write_text(json.dumps({"mcpServers": {"boyce": {"command": "boyce"}}}))
+
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        code = _run_wizard_noninteractive(
+            editors=None,
+            db_url=None,
+            skip_db=True,
+            skip_sources=True,
+            skip_existing=True,
+            json_output=False,
+        )
+    # Should exit 0 even with empty list (all skipped)
+    assert code == 0
+
+
+def test_noninteractive_json_output_is_valid(tmp_path, capsys):
+    """--json output is valid parseable JSON."""
+    specs = _make_specs(tmp_path)
+    (tmp_path / ".claude").mkdir()
+
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        code = _run_wizard_noninteractive(
+            editors=["claude_code"],
+            db_url=None,
+            skip_db=True,
+            skip_sources=True,
+            skip_existing=False,
+            json_output=True,
+        )
+    assert code == 0
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert result["status"] == "ok"
+    assert "Claude Code" in result["editors_configured"]
+    assert isinstance(result["config_paths"], list)
+
+
+def test_noninteractive_json_error_is_valid(tmp_path, capsys):
+    """Error JSON output is valid and contains error field."""
+    specs = _make_specs(tmp_path)
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        code = _run_wizard_noninteractive(
+            editors=["fake_editor"],
+            db_url=None,
+            skip_db=True,
+            skip_sources=True,
+            skip_existing=False,
+            json_output=True,
+        )
+    assert code == 1
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert result["status"] == "error"
+    assert "error" in result
+
+
+def test_noninteractive_idempotent_rerun(tmp_path):
+    """Running non-interactive twice doesn't clobber the first run."""
+    specs = _make_specs(tmp_path)
+    (tmp_path / ".claude").mkdir()
+
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        # First run
+        code1 = _run_wizard_noninteractive(
+            editors=["claude_code"],
+            db_url=None,
+            skip_db=True,
+            skip_sources=True,
+            skip_existing=False,
+            json_output=False,
+        )
+        assert code1 == 0
+
+        # Write a second server to the same config (simulating another tool)
+        config = json.loads((tmp_path / ".mcp.json").read_text())
+        config["mcpServers"]["other-tool"] = {"command": "other"}
+        (tmp_path / ".mcp.json").write_text(json.dumps(config))
+
+        # Second run — should not clobber other-tool
+        code2 = _run_wizard_noninteractive(
+            editors=["claude_code"],
+            db_url=None,
+            skip_db=True,
+            skip_sources=True,
+            skip_existing=False,
+            json_output=False,
+        )
+        assert code2 == 0
+
+    final = json.loads((tmp_path / ".mcp.json").read_text())
+    assert "boyce" in final["mcpServers"]
+    assert "other-tool" in final["mcpServers"]
+
+
+# ---------------------------------------------------------------------------
+# run_wizard — routing
+# ---------------------------------------------------------------------------
+
+
+def test_run_wizard_routes_to_noninteractive(tmp_path):
+    """run_wizard with non_interactive=True routes to non-interactive path."""
+    specs = _make_specs(tmp_path)
+    (tmp_path / ".claude").mkdir()
+
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        code = run_wizard(
+            non_interactive=True,
+            json_output=False,
+            editors="claude_code",
+            skip_db=True,
+            skip_sources=True,
+        )
+    assert code == 0
+
+
+def test_run_wizard_parses_comma_editors(tmp_path, capsys):
+    """run_wizard splits comma-separated editor names."""
+    specs = _make_specs(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    # Create Cursor dir so it's detected
+    (tmp_path / ".cursor").mkdir()
+
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        code = run_wizard(
+            non_interactive=True,
+            json_output=True,
+            editors="claude_code,cursor",
+            skip_db=True,
+            skip_sources=True,
+        )
+    assert code == 0
+    result = json.loads(capsys.readouterr().out)
+    assert "Claude Code" in result["editors_configured"]
+    assert "Cursor" in result["editors_configured"]

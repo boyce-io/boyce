@@ -35,6 +35,30 @@ from urllib.parse import urlparse
 
 _q = None  # Set to questionary module if available
 
+# ---------------------------------------------------------------------------
+# CLI editor name mapping (for --editors flag)
+# ---------------------------------------------------------------------------
+
+_CLI_EDITOR_NAMES = {
+    "claude_code": "Claude Code",
+    "cursor": "Cursor",
+    "vscode": "VS Code",
+    "jetbrains": "JetBrains / DataGrip",
+    "windsurf": "Windsurf",
+    "claude_desktop": "Claude Desktop",
+}
+
+
+def _redact_dsn(dsn: str) -> str:
+    """Redact password from a PostgreSQL DSN for display."""
+    try:
+        parsed = urlparse(dsn)
+        if parsed.password:
+            return dsn.replace(f":{parsed.password}@", ":***@")
+        return dsn
+    except Exception:
+        return dsn
+
 
 def _ensure_questionary() -> bool:
     """
@@ -246,6 +270,22 @@ def detect_hosts(specs: Optional[List[Dict]] = None) -> List[MCPHost]:
         ))
 
     return hosts
+
+
+def _get_existing_db_url(hosts: List[MCPHost]) -> Optional[str]:
+    """Check if any configured host already has a BOYCE_DB_URL set."""
+    for h in hosts:
+        if h.has_boyce and h.config_path.exists():
+            try:
+                data = json.loads(h.config_path.read_text(encoding="utf-8"))
+                servers = data.get(h.servers_key, {})
+                boyce_entry = servers.get("boyce", {})
+                dsn = boyce_entry.get("env", {}).get("BOYCE_DB_URL")
+                if dsn:
+                    return dsn
+            except (json.JSONDecodeError, OSError):
+                continue
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -475,19 +515,21 @@ def _step_editors(hosts: List[MCPHost]) -> List[MCPHost]:
     undetected = [h for h in hosts if not h.exists]
     ordered = detected + undetected
 
-    # Build choice labels
+    # Build choice labels — show configured status for idempotent re-runs
     labels: List[str] = []
+    pre_checked: List[bool] = []
     for h in ordered:
-        if h.exists:
-            label = f"{h.name}  (detected)"
+        if h.exists and h.has_boyce:
+            labels.append(f"{h.name}  (configured \u2713)")
+            pre_checked.append(False)   # Already configured, skip by default
+        elif h.exists:
+            labels.append(f"{h.name}  (detected)")
+            pre_checked.append(True)    # New editor, suggest configuring
         else:
-            label = h.name
-        labels.append(label)
+            labels.append(h.name)
+            pre_checked.append(False)
     labels.append(_SOMETHING_ELSE)
-
-    # Pre-check all detected editors — if you're running the wizard,
-    # you want every installed editor configured (especially for new DB URLs)
-    pre_checked = [h.exists for h in ordered] + [False]
+    pre_checked.append(False)
 
     selected_labels = _ask_checkbox(
         "Select your editors",
@@ -643,12 +685,26 @@ def _collect_one_database() -> Optional[Tuple[str, str]]:
             return None
 
 
-def _step_databases() -> List[Tuple[str, str]]:
+def _step_databases(hosts: Optional[List[MCPHost]] = None) -> List[Tuple[str, str]]:
     """
     Let the user configure database connections.
     Returns list of (name, dsn) tuples.
     """
     _print_step(2, 3, "Connecting Your Database")
+
+    # Check for existing DB configuration (idempotent re-run)
+    if hosts:
+        existing_dsn = _get_existing_db_url(hosts)
+        if existing_dsn:
+            redacted = _redact_dsn(existing_dsn)
+            print(f"  Database already configured: {redacted}")
+            if _ask_yes_no("Keep this?", default=True):
+                try:
+                    name = urlparse(existing_dsn).path.lstrip("/") or "database"
+                except Exception:
+                    name = "database"
+                return [(name, existing_dsn)]
+            print()
 
     print("  Connect to your database for live queries and SQL validation.")
     print("  Press Enter to skip — you can always add this later.\n")
@@ -874,23 +930,254 @@ def _print_summary(
 
 
 # ---------------------------------------------------------------------------
+# Non-interactive helpers
+# ---------------------------------------------------------------------------
+
+
+def _run_auto_discovery_silent() -> List[Dict]:
+    """Run auto-discovery and ingest all pre-selected sources silently."""
+    try:
+        from .discovery import SEARCH_ROOTS, discover_sources, ingest_source  # noqa: PLC0415
+    except ImportError:
+        return []
+
+    existing_roots = [r for r in SEARCH_ROOTS if r.exists()]
+    if not existing_roots:
+        return []
+
+    sources = discover_sources(existing_roots)
+    pre_selected = [s for s in sources if s.pre_selected]
+
+    results: List[Dict] = []
+    for source in pre_selected:
+        name = source.path.stem if source.path.is_file() else source.path.name
+        try:
+            ingest_source(source, name=name)
+            path_display = str(source.path).replace(str(Path.home()), "~")
+            results.append({
+                "name": name,
+                "path": path_display,
+                "parser_type": source.parser_type,
+            })
+        except Exception:
+            continue
+
+    return results
+
+
+def _print_noninteractive_summary(result: Dict) -> None:
+    """Human-readable summary for non-interactive mode (without --json)."""
+    editors = result.get("editors_configured", [])
+    skipped = result.get("editors_skipped", [])
+    db = result.get("database")
+    sources = result.get("sources_ingested", [])
+    suggestions = result.get("suggestions", [])
+
+    if editors:
+        print(f"  Editors configured: {', '.join(editors)}")
+    if skipped:
+        print(f"  Editors skipped:    {', '.join(skipped)} (already configured)")
+    if db:
+        status = "\u2713 connected" if db["connected"] else "\u2717 failed"
+        print(f"  Database:           {db.get('dsn_redacted', '')} ({status})")
+    if sources:
+        print(f"  Sources ingested:   {', '.join(s['name'] for s in sources)}")
+    for s in suggestions:
+        print(f"  Note: {s}")
+    if not editors and not skipped:
+        print("  No editors configured.")
+
+
+def _run_wizard_noninteractive(
+    editors: Optional[List[str]],
+    db_url: Optional[str],
+    skip_db: bool,
+    skip_sources: bool,
+    skip_existing: bool,
+    json_output: bool,
+) -> int:
+    """Non-interactive wizard path. No prompts, no questionary."""
+    result: Dict = {
+        "status": "ok",
+        "editors_configured": [],
+        "editors_skipped": [],
+        "database": None,
+        "sources_ingested": [],
+        "config_paths": [],
+        "suggestions": [],
+    }
+
+    # Step 1: Editors
+    hosts = detect_hosts()
+
+    if editors:
+        # Map CLI names to MCPHost objects
+        name_to_host: Dict[str, MCPHost] = {}
+        for h in hosts:
+            for cli_name, display_name in _CLI_EDITOR_NAMES.items():
+                if h.name == display_name:
+                    name_to_host[cli_name] = h
+
+        selected: List[MCPHost] = []
+        unknown: List[str] = []
+        for e in editors:
+            if e in name_to_host:
+                selected.append(name_to_host[e])
+            else:
+                unknown.append(e)
+
+        if unknown:
+            result["status"] = "error"
+            valid = ", ".join(sorted(_CLI_EDITOR_NAMES.keys()))
+            result["error"] = f"Unknown editor(s): {', '.join(unknown)}. Valid names: {valid}"
+            if json_output:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"Error: {result['error']}", file=sys.stderr)
+            return 1
+    else:
+        # Auto-detect: configure all detected editors
+        selected = [h for h in hosts if h.exists]
+
+    if skip_existing:
+        skipped = [h for h in selected if h.has_boyce]
+        result["editors_skipped"] = [h.name for h in skipped]
+        selected = [h for h in selected if not h.has_boyce]
+        if skipped and not selected:
+            result["suggestions"].append(
+                "All detected editors already configured. "
+                "Use --editors to reconfigure specific ones."
+            )
+
+    # Step 2: Database
+    db_entries: List[Tuple[str, str]] = []
+    if not skip_db and db_url:
+        ok, msg = _test_db_connection(db_url)
+        try:
+            parsed = urlparse(db_url)
+            db_name = (parsed.path or "/unnamed").lstrip("/") or "database"
+        except Exception:
+            db_name = "database"
+
+        db_info: Dict = {
+            "name": db_name,
+            "dsn_redacted": _redact_dsn(db_url),
+            "connected": ok,
+            "message": msg,
+        }
+        # Parse table count from message if available
+        if ok and "(" in msg and "tables" in msg:
+            try:
+                table_count = int(msg.split("(")[1].split(" ")[0])
+                db_info["table_count"] = table_count
+            except (IndexError, ValueError):
+                pass
+
+        result["database"] = db_info
+
+        if not ok:
+            result["status"] = "error"
+            result["error"] = f"Database connection failed: {msg}"
+            if json_output:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"Error: Database connection failed: {msg}", file=sys.stderr)
+            return 1
+
+        db_entries = [(db_name, db_url)]
+
+    # Step 3: Sources
+    if not skip_sources:
+        result["sources_ingested"] = _run_auto_discovery_silent()
+
+    # Write configs
+    if selected:
+        first_dsn = db_entries[0][1] if db_entries else None
+        server_entry = generate_server_entry(db_url=first_dsn)
+
+        configured: List[MCPHost] = []
+        for host in selected:
+            try:
+                entry = {**server_entry, **(host.entry_extra or {})} if host.entry_extra else server_entry
+                merge_config(host.config_path, entry, servers_key=host.servers_key)
+                configured.append(host)
+            except Exception as exc:
+                result["suggestions"].append(f"Failed to configure {host.name}: {exc}")
+
+        result["editors_configured"] = [h.name for h in configured]
+        result["config_paths"] = [str(h.config_path) for h in configured]
+    elif not selected and not result.get("editors_skipped"):
+        # No editors detected and none specified
+        if editors is not None:
+            # User specified editors but none matched (already caught above as unknown)
+            pass
+        else:
+            result["status"] = "error"
+            result["error"] = "No editors detected. Specify editors with --editors."
+            if json_output:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"Error: {result['error']}", file=sys.stderr)
+            return 1
+
+    # Output
+    if json_output:
+        print(json.dumps(result, indent=2))
+    else:
+        _print_noninteractive_summary(result)
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Main wizard
 # ---------------------------------------------------------------------------
 
 
-def run_wizard() -> int:
+def run_wizard(
+    non_interactive: bool = False,
+    json_output: bool = False,
+    editors: Optional[str] = None,
+    db_url: Optional[str] = None,
+    skip_db: bool = False,
+    skip_sources: bool = False,
+    skip_existing: bool = False,
+) -> int:
     """
-    Run the interactive setup wizard.
+    Run the setup wizard.
+
+    In non-interactive mode, no prompts are issued — configuration is driven
+    entirely by flags. Use --json for structured output suitable for agents.
+
     Returns 0 on success, 1 on error or full skip.
     """
-    # Require an interactive terminal — questionary and input() both need one
+    if non_interactive:
+        editor_list = [e.strip() for e in editors.split(",")] if editors else None
+        return _run_wizard_noninteractive(
+            editors=editor_list,
+            db_url=db_url,
+            skip_db=skip_db,
+            skip_sources=skip_sources,
+            skip_existing=skip_existing,
+            json_output=json_output,
+        )
+
+    if json_output:
+        print(
+            "Warning: --json without --non-interactive; "
+            "interactive mode ignores --json",
+            file=sys.stderr,
+        )
+
+    # Require an interactive terminal
     if not sys.stdin.isatty():
         print("boyce init requires an interactive terminal.")
         print("Run this command directly in your terminal, not as a subprocess.")
+        print("Use --non-interactive for agent/script invocation.")
         return 1
 
     print("\n  Boyce Setup")
-    print("  " + "═" * 40)
+    print("  " + "=" * 40)
 
     try:
         return _run_wizard_interactive()
@@ -913,7 +1200,7 @@ def _run_wizard_interactive() -> int:
         return 0
 
     # Step 2 — Database
-    db_entries = _step_databases()
+    db_entries = _step_databases(hosts=hosts)
 
     # Step 3 — Data Sources
     source_entries = _step_data_sources()

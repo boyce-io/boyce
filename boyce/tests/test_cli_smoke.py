@@ -163,6 +163,24 @@ def define_tests() -> None:
         label="boyce init (non-interactive)",
         timeout=10)
 
+    # --- boyce init --help should list new flags ---
+    run([_BOYCE, "init", "--non-interactive", "--skip-db", "--skip-sources", "--json"],
+        expected_exit=0,
+        label="boyce init --non-interactive --skip-db --skip-sources --json",
+        timeout=10)
+
+    # --- boyce init --non-interactive --editors with unknown editor → exit 1 ---
+    run([_BOYCE, "init", "--non-interactive", "--editors", "nonexistent_editor", "--json"],
+        expected_exit=1,
+        label="boyce init --non-interactive --editors <unknown> --json (exit 1)",
+        timeout=10)
+
+    # --- boyce init --non-interactive --skip-existing → exit 0 (all skipped) ---
+    run([_BOYCE, "init", "--non-interactive", "--skip-db", "--skip-sources", "--skip-existing", "--json"],
+        expected_exit=0,
+        label="boyce init --non-interactive --skip-existing --json",
+        timeout=10)
+
     # --- legacy boyce-init entry point (backward compat) ---
     run([_BOYCE_INIT],
         expected_exit={0, 1},
