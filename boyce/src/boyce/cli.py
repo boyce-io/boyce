@@ -9,6 +9,7 @@ Usage:
     boyce init [OPTIONS]                   Setup wizard — configure editors, DB, data sources
     boyce scan <path> [-o FILE]            Scan a file or directory for data schemas
     boyce doctor [--json]                  Check environment health (editors, DB, snapshots)
+    boyce update [--yes]                   Check for and apply Boyce updates
 
 Options for ask / chat:
     --snapshot NAME    Snapshot name (default: "default")
@@ -23,6 +24,7 @@ Environment variables:
     BOYCE_MODEL      LLM model name
     BOYCE_DB_URL     asyncpg DSN for live DB
     BOYCE_HTTP_TOKEN Bearer token for HTTP server auth
+    BOYCE_DISABLE_UPDATE_CHECK  Disable PyPI version check (any value)
 """
 
 from __future__ import annotations
@@ -252,8 +254,12 @@ def _parse_args(argv: list) -> tuple:
         json_flag = "--json" in argv
         return ("doctor", {"json": json_flag})
 
+    if subcmd == "update":
+        yes = "--yes" in argv or "-y" in argv
+        return ("update", {"yes": yes})
+
     # Unknown subcommand — print error rather than silently starting MCP server
-    return ("error", {"msg": f"Unknown command: '{subcmd}'\nUsage: boyce [ask|chat|doctor|init|scan|serve] ...\nRun 'boyce --help' for full usage."})
+    return ("error", {"msg": f"Unknown command: '{subcmd}'\nUsage: boyce [ask|chat|doctor|init|scan|serve|update] ...\nRun 'boyce --help' for full usage."})
 
 
 # ---------------------------------------------------------------------------
@@ -276,9 +282,18 @@ def main() -> None:
     if subcmd == "version":
         from importlib.metadata import version as _version, PackageNotFoundError
         try:
-            print(_version("boyce"))
+            ver = _version("boyce")
         except PackageNotFoundError:
-            print("boyce (development install)")
+            ver = "dev"
+        suffix = ""
+        try:
+            from .version_check import get_cached_version_info  # noqa: PLC0415
+            info = get_cached_version_info(Path("_local_context"))
+            if info and info.get("update_available"):
+                suffix = f" (latest: {info['latest']} — run `boyce update`)"
+        except Exception:
+            pass
+        print(f"boyce {ver}{suffix}")
         return
 
     if subcmd == "mcp":
@@ -307,6 +322,10 @@ def main() -> None:
         from .doctor import run_doctor  # noqa: PLC0415
         code = asyncio.run(run_doctor(json_output=kwargs["json"]))
         sys.exit(code)
+
+    if subcmd == "update":
+        from .version_check import run_update  # noqa: PLC0415
+        sys.exit(run_update(yes=kwargs["yes"]))
 
     if subcmd == "scan":
         from .scan import main as scan_main  # noqa: PLC0415

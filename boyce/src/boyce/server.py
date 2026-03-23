@@ -1950,6 +1950,30 @@ def _check_environment_suggestions() -> List[str]:
 
     suggestions: List[str] = []
 
+    # 0. Version lifecycle checks (highest priority)
+    try:
+        from .version_check import get_version_info  # noqa: PLC0415
+
+        vi = get_version_info(_LOCAL_CONTEXT)
+
+        # Stale process — highest priority
+        if vi.get("restart_required"):
+            suggestions.append(
+                f"Boyce was upgraded to {vi['installed']} but the running "
+                f"server is still {vi['running']}. Restart your editor."
+            )
+        # Update available (minor/major only, respect cooldown)
+        elif (
+            vi.get("update_available")
+            and vi.get("update_type") in ("major", "minor")
+            and not vi.get("cooldown_active")
+        ):
+            suggestions.append(
+                f"Boyce {vi['latest']} available — run `boyce update` to upgrade."
+            )
+    except Exception:
+        pass  # Non-fatal
+
     # 1. Check if environment.json exists and is recent
     env_path = _LOCAL_CONTEXT / "environment.json"
     if env_path.exists():
@@ -1979,7 +2003,7 @@ def _check_environment_suggestions() -> List[str]:
     if _LOCAL_CONTEXT.exists():
         from datetime import datetime as _dt2, timezone as _tz2
         for path in _LOCAL_CONTEXT.glob("*.json"):
-            if path.name in ("connections.json", "environment.json") or \
+            if path.name in ("connections.json", "environment.json", "version_check.json") or \
                     path.name.endswith(".definitions.json"):
                 continue
             mtime = _dt2.fromtimestamp(path.stat().st_mtime, tz=_tz2.utc)
@@ -2287,6 +2311,26 @@ def _build_advertising_layer(
     env_suggestions = _check_environment_suggestions()
     if env_suggestions:
         result["environment_suggestions"] = env_suggestions
+
+    # Graceful self-termination after upgrade (gated behind env var).
+    # If the MCP host does not auto-respawn stdio servers, the user will
+    # lose Boyce until they manually restart.  Default: off.
+    if os.environ.get("BOYCE_AUTO_RESTART_ON_UPDATE"):
+        try:
+            from .version_check import check_running_vs_installed  # noqa: PLC0415
+
+            rv = check_running_vs_installed()
+            if rv["restart_required"]:
+                import threading
+
+                def _delayed_exit() -> None:
+                    import time
+                    time.sleep(0.5)
+                    sys.exit(0)
+
+                threading.Thread(target=_delayed_exit, daemon=True).start()
+        except Exception:
+            pass
 
     return result
 
@@ -2791,9 +2835,35 @@ async def check_health(snapshot_name: str = "default") -> str:
             "or ask_boyce with a natural language question."
         )
 
+    # Version info
+    version_info: Dict[str, Any] = {}
+    try:
+        from .version_check import get_version_info  # noqa: PLC0415
+
+        vi = get_version_info(_LOCAL_CONTEXT)
+        version_info = {
+            "current": vi.get("current"),
+            "latest": vi.get("latest"),
+            "installed": vi.get("installed"),
+            "update_available": vi.get("update_available", False),
+            "restart_required": vi.get("restart_required", False),
+        }
+        if vi.get("restart_required"):
+            suggestions.insert(0,
+                f"Restart editor (running {vi['running']}, "
+                f"installed {vi['installed']})",
+            )
+        elif vi.get("update_available"):
+            suggestions.append(
+                f"Boyce {vi['latest']} available — run `boyce update`",
+            )
+    except Exception:
+        pass
+
     result = {
         **ad,
         "status": status,
+        "version": version_info,
         "database": db_result,
         "snapshot": snap_result,
         "server": server_result,

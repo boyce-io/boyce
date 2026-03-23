@@ -33,6 +33,7 @@ dependencies = [
     "sqlparse>=0.4.4",
     "PyYAML>=6.0",
     "litellm>=1.0.0",
+    "packaging>=21.0",
 ]
 
 [project.urls]

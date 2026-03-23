@@ -187,6 +187,11 @@ def define_tests() -> None:
         label="boyce-init (legacy entry point)",
         timeout=10)
 
+    # --- boyce update: should not hang (no network in test) ---
+    run([_BOYCE, "update", "--yes"],
+        expected_exit={0, 1, 2},  # 0=upgraded, 1=latest, 2=network/error
+        label="boyce update --yes (no hang)")
+
     # --- boyce scan: subcommand form ---
     run([_BOYCE, "scan"],
         expected_exit=2, label="boyce scan (no path)")

@@ -43,7 +43,7 @@ Every top-level folder signals its audience by its prefix:
 
 | Prefix | Audience | Examples |
 |---|---|---|
-| `_name/` | **Internal only** — planning, strategy, management scratch. Never referenced in public docs. | `_strategy/`, `_management_documents/` |
+| `_name/` | **Internal only** — planning, strategy, management scratch. Never referenced in public docs. | `_strategy/` |
 | `name/` (no prefix) | **Public / contributor-visible** — source, tests, docs, demo. What a user or contributor sees on GitHub. | `boyce/`, `docs/`, `demo/`, `extension/`, `test_warehouses/` |
 | `.name/` | **Runtime / tooling** — config files, generated data, IDE/tool artifacts. Usually gitignored or system-managed. | `.boyce/`, `.claude/`, `.venv/` |
 
@@ -219,7 +219,8 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 | **MCP entry point** (8 tools) | `server.py` |
 | **Response advertising layer** | `server.py` — `_build_advertising_layer()` (next_step, present_to_user, data_reality, environment_suggestions) |
 | **DSN persistence** | `connections.py` — `ConnectionStore` (`_local_context/connections.json`) |
-| **Environment diagnostics** | `doctor.py` — `run_doctor()`, 5 check functions, `boyce doctor` CLI |
+| **Environment diagnostics** | `doctor.py` — `run_doctor()`, 6 check functions (incl. version), `boyce doctor` CLI |
+| **Version lifecycle** | `version_check.py` — PyPI check, 24h disk cache, install detection, `boyce update`, stale-process detection |
 | **Deterministic kernel** | `kernel.py` — `process_request(snapshot, filter)` |
 | **Semantic graph** | `graph.py` — `SemanticGraph` (NetworkX MultiDiGraph) |
 | **Protocol contract** | `types.py` — `SemanticSnapshot`, `Entity`, `FieldDef`, `JoinDef` |
@@ -246,7 +247,7 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 | `validate_sql` | Validate hand-written SQL — EXPLAIN pre-flight, Redshift lint, NULL risk — without executing |
 | `query_database` | Execute read-only SELECT with live NULL trap profiling, EXPLAIN pre-flight, metadata query detection |
 | `profile_data` | Profile a column: null count/pct, distinct count, min/max |
-| `check_health` | Operational health check — DB connectivity, snapshot freshness, actionable fix commands |
+| `check_health` | Operational health check — DB connectivity, snapshot freshness, version info, actionable fix commands |
 
 Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host LLM uses `get_schema` + `ask_boyce` directly.
 
@@ -262,7 +263,8 @@ Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host 
 | `tests/test_init.py` | Init wizard: detect_hosts, generate_server_entry, merge_config |
 | `tests/test_advertising.py` | Response advertising layer: column extraction, bare column resolution, next_step/present_to_user/data_reality/environment_suggestions, integration (34 tests) |
 | `tests/test_connections.py` | ConnectionStore: save/load/touch/remove/list_all, DSN persistence, edge cases (16 tests) |
-| `tests/test_doctor.py` | Doctor checks: editors, database, snapshots, sources, server, orchestrator, JSON output (14 tests) |
+| `tests/test_doctor.py` | Doctor checks: version, editors, database, snapshots, sources, server, orchestrator, JSON output (20 tests) |
+| `tests/test_version_check.py` | Version lifecycle: PyPI fetch, disk cache, classify update, stale-process, install detection, cooldown, nudge filtering, run_update (37 tests) |
 | `tests/live_fire/run_mission.py` | Full pipeline: Docker Postgres + LLM + EXPLAIN |
 | `demo/magic_moment/verify_demo.py` | Demo smoke test — NULL Trap distribution check |
 | `quickstart.sh` | Dev setup: install, `.env` template, verify_eyes |
@@ -336,7 +338,7 @@ See `_strategy/plans/block-1b-vscode-extension.md` for full plan.
 - Use `git diff` to verify changes before committing
 
 ## Context Window Discipline
-- During any multi-step analysis or investigation, write findings to a file in `_management_documents/` before moving to the next step. Do not hold conclusions only in context.
+- During any multi-step analysis or investigation, write findings to a file before moving to the next step. Do not hold conclusions only in context.
 - When a task produces a significant output (audit, comparison, dependency map, etc.), always write it to disk unprompted. Never assume the conversation will persist.
 - If a session is clearly getting long, proactively tell the user to run `/compact` before continuing.
 

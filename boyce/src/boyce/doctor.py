@@ -11,12 +11,54 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Check: version
+# ---------------------------------------------------------------------------
+
+def check_version(context_dir: Path) -> Dict[str, Any]:
+    """
+    Check Boyce version against PyPI and detect stale processes.
+
+    Returns structured dict with status, version info, and fix suggestions.
+    """
+    from .version_check import get_version_info
+
+    info = get_version_info(context_dir)
+    items: List[Dict[str, Any]] = []
+
+    if info.get("restart_required"):
+        status = "warning"
+        items.append({
+            "name": "version",
+            "fix": f"Restart editor (running {info['running']}, installed {info['installed']})",
+        })
+    elif info.get("update_available"):
+        status = "info"
+        items.append({
+            "name": "version",
+            "fix": f"boyce update (current: {info['current']}, latest: {info['latest']})",
+        })
+    else:
+        status = "ok"
+
+    return {
+        "status": status,
+        "current": info.get("current"),
+        "latest": info.get("latest"),
+        "installed": info.get("installed"),
+        "update_available": info.get("update_available", False),
+        "restart_required": info.get("restart_required", False),
+        "items": items,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +206,7 @@ def check_snapshots(context_dir: Path) -> Dict[str, Any]:
 
     for path in sorted(context_dir.glob("*.json")):
         # Skip non-snapshot files
-        if path.name in ("connections.json", "environment.json") or \
+        if path.name in ("connections.json", "environment.json", "version_check.json") or \
                 path.name.endswith(".definitions.json"):
             continue
 
@@ -278,7 +320,7 @@ def check_server(context_dir: Path) -> Dict[str, Any]:
     if context_exists:
         snapshot_count = len([
             p for p in context_dir.glob("*.json")
-            if p.name not in ("connections.json", "environment.json")
+            if p.name not in ("connections.json", "environment.json", "version_check.json")
             and not p.name.endswith(".definitions.json")
         ])
 
@@ -322,6 +364,7 @@ async def run_doctor(
 
     results: Dict[str, Any] = {
         "checks": {
+            "version": check_version(context_dir),
             "editors": check_editors(),
             "database": await check_database(context_dir),
             "snapshots": check_snapshots(context_dir),
@@ -383,6 +426,22 @@ def _print_human_readable(results: Dict[str, Any]) -> None:
     for check_name, check_result in results["checks"].items():
         status = check_result.get("status", "ok")
         icon = {"ok": "✓", "warning": "⚠", "error": "✗", "info": "ℹ"}.get(status, "?")
+
+        # Version check gets special formatting
+        if check_name == "version":
+            current = check_result.get("current", "?")
+            latest = check_result.get("latest")
+            if check_result.get("restart_required"):
+                installed = check_result.get("installed", "?")
+                print(f"\n  ⚠ version: {current} (restart needed — {installed} installed)")
+            elif check_result.get("update_available") and latest:
+                print(f"\n  ℹ version: {current} ({latest} available — run `boyce update`)")
+            elif os.environ.get("BOYCE_DISABLE_UPDATE_CHECK"):
+                print(f"\n  ℹ version: {current} (update check disabled)")
+            else:
+                print(f"\n  ✓ version: {current} (up to date)")
+            continue
+
         print(f"\n  {icon} {check_name}: {status}")
 
         for item in check_result.get("items", []):

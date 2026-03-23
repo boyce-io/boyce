@@ -13,6 +13,7 @@ from boyce.doctor import (
     check_server,
     check_snapshots,
     check_sources,
+    check_version,
     run_doctor,
 )
 
@@ -167,3 +168,70 @@ def test_run_doctor_human_output(tmp_path: Path, capsys):
     captured = capsys.readouterr()
     assert "Boyce Doctor" in captured.out
     assert "Overall:" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# check_version
+# ---------------------------------------------------------------------------
+
+def test_check_version_returns_structure(tmp_path):
+    with patch("boyce.version_check.get_version_info", return_value={
+        "current": "0.1.0", "latest": "0.1.0", "installed": "0.1.0",
+        "running": "0.1.0", "update_available": False, "restart_required": False,
+    }):
+        result = check_version(tmp_path)
+    assert "status" in result
+    assert "current" in result
+    assert "items" in result
+
+
+def test_check_version_update_available(tmp_path):
+    with patch("boyce.version_check.get_version_info", return_value={
+        "current": "0.1.0", "latest": "0.2.0", "installed": "0.1.0",
+        "running": "0.1.0", "update_available": True, "restart_required": False,
+    }):
+        result = check_version(tmp_path)
+    assert result["status"] == "info"
+    assert len(result["items"]) == 1
+    assert "boyce update" in result["items"][0]["fix"]
+
+
+def test_check_version_restart_required(tmp_path):
+    with patch("boyce.version_check.get_version_info", return_value={
+        "current": "0.1.0", "latest": "0.2.0", "installed": "0.2.0",
+        "running": "0.1.0", "update_available": True, "restart_required": True,
+    }):
+        result = check_version(tmp_path)
+    assert result["status"] == "warning"
+    assert "Restart" in result["items"][0]["fix"]
+
+
+def test_check_version_up_to_date(tmp_path):
+    with patch("boyce.version_check.get_version_info", return_value={
+        "current": "0.1.0", "latest": "0.1.0", "installed": "0.1.0",
+        "running": "0.1.0", "update_available": False, "restart_required": False,
+    }):
+        result = check_version(tmp_path)
+    assert result["status"] == "ok"
+    assert result["items"] == []
+
+
+def test_run_doctor_includes_version_check(capsys):
+    with patch("boyce.version_check.get_version_info", return_value={
+        "current": "0.1.0", "latest": "0.1.0", "installed": "0.1.0",
+        "running": "0.1.0", "update_available": False, "restart_required": False,
+    }):
+        code = asyncio.run(run_doctor(json_output=True))
+    output = json.loads(capsys.readouterr().out)
+    assert "version" in output["checks"]
+
+
+def test_run_doctor_version_is_first_check(capsys):
+    with patch("boyce.version_check.get_version_info", return_value={
+        "current": "0.1.0", "latest": "0.1.0", "installed": "0.1.0",
+        "running": "0.1.0", "update_available": False, "restart_required": False,
+    }):
+        code = asyncio.run(run_doctor(json_output=True))
+    output = json.loads(capsys.readouterr().out)
+    first_key = list(output["checks"].keys())[0]
+    assert first_key == "version"
