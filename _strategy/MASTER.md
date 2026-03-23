@@ -1,6 +1,6 @@
 # Boyce — Master Directive
 **This is the single source of truth for planning and execution.**
-**Last updated:** 2026-03-21
+**Last updated:** 2026-03-23
 **All other planning documents are subordinate to this file.**
 **Product name:** Boyce — named for [Raymond F. Boyce](https://en.wikipedia.org/wiki/Raymond_F._Boyce), co-inventor of SQL (1974)
 **Domain:** boyce.io (purchased 2026-03-04)

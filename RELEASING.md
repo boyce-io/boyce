@@ -8,12 +8,12 @@ Run top-to-bottom. Do not skip steps. Each step has a verification.
 ## Pre-Publish Gate (must all be true)
 
 - [ ] Cursor cross-platform test PASSED
-- [ ] All tests pass: `python -m pytest boyce/tests/ -v` (316 pass, 6 skip)
-- [ ] CLI smoke checks pass: `python -m pytest boyce/tests/test_cli_smoke.py -v`
-- [ ] Clean venv install works: `uv venv /tmp/boyce-release && uv pip install -e boyce/ && /tmp/boyce-release/bin/boyce --help`
+- [x] All tests pass: `python -m pytest boyce/tests/ -v` (395 pass, 6 skip) ✓ 2026-03-23
+- [x] CLI smoke checks pass: `python -m pytest boyce/tests/test_cli_smoke.py -v` ✓ 2026-03-23
+- [x] Clean venv install works: `uv venv /tmp/boyce-release && uv pip install -e boyce/ && /tmp/boyce-release/bin/boyce --help` ✓ 2026-03-23
 - [ ] Version number decided: __________ (write it here)
-- [ ] `git status` is clean on main branch
-- [ ] No open PRs that should be merged first
+- [x] `git status` is clean on main branch ✓ 2026-03-23
+- [x] No open PRs that should be merged first ✓ 2026-03-23
 
 ---
 
