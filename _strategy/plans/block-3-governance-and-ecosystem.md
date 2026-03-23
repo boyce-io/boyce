@@ -1,11 +1,13 @@
-# Plan: Block 3 — Data Quality & Protocol v0.2
+# Plan: Block 3 — Data Quality, Agentic Ingestion & Protocol v0.2
 **Status:** Pending
 **Created:** 2026-02-28
+**Updated:** 2026-03-21
 **Timeline:** Days 26-35 after name is locked
 **Depends on:** Block 2 (Protocol & Parsers) — spec published, parsers operational
 
 ## Goal
-Data quality becomes a first-class protocol feature. Drift detection operational. Policy
+Data quality becomes a first-class protocol feature. Live warehouse ingestion works on
+real-world messy schemas without requiring API keys. Drift detection operational. Policy
 stubs in the schema prevent future breaking changes. The protocol self-describes data
 trustworthiness — this is the competitive wedge against dbt MCP.
 
@@ -19,6 +21,96 @@ trustworthiness — this is the competitive wedge against dbt MCP.
 ---
 
 ## Implementation Steps
+
+### Step 0: Host-LLM Agentic Ingestion (CEO Directive, 2026-03-21)
+
+**Hard requirement:** Full data warehouse ingestion MUST run on the user's host LLM
+(the agent that called Boyce), not on a BYOK API key. A junior data analyst's agent
+installs Boyce, connects to their warehouse, and the agent does the semantic
+classification. No API key prompt. No credentials dialog. No bounce.
+
+**The problem:** `_build_snapshot_from_live_db()` currently does mechanical type
+classification — PKs → ID, timestamps → TIMESTAMP, numerics → MEASURE, everything
+else → DIMENSION. This works on Pagila (15 clean tables). On a real warehouse
+(200+ tables, views, materialized views, naming chaos, no FK constraints):
+- `stg_orders_legacy` vs `fact_orders` vs `orders_v2` — which is canonical?
+- `amount` column — revenue, cost, quantity, or refund?
+- Views that encapsulate business logic vs raw base tables
+- Tables with no FK constraints (Redshift) — join inference from names alone
+- Wide tables with 50+ columns, most unused
+
+**Architecture — the Mode C pattern applied to ingestion:**
+
+The architecture already exists. Mode C in `ask_boyce` returns structured data for
+the host LLM to reason about, then accepts the result back. Ingestion does the same:
+
+```
+Step 1: Agent calls ingest_source(postgresql://...)
+        Boyce introspects ALL objects (tables, views, mat views, functions, sequences)
+        Boyce does mechanical classification (what it can determine from metadata)
+        Boyce returns snapshot + classification_needed payload
+
+Step 2: Host LLM reads the classification_needed payload:
+        - Entities needing semantic type review (MEASURE vs DIMENSION ambiguity)
+        - Candidate entity groups (tables that look like duplicates/versions)
+        - Join candidates (columns with matching names across tables, no FK)
+        - Object type context (view vs table vs materialized view)
+
+Step 3: Host LLM calls enrich_snapshot(snapshot_name, enrichments):
+        - Semantic type overrides (field X is MEASURE, not DIMENSION)
+        - Canonical entity flags (fact_orders is canonical, stg_orders is staging)
+        - Inferred joins with confidence scores
+        - Business name suggestions ("customer_dim" → display as "Customers")
+
+Step 4: Boyce stores enriched classifications in the snapshot.
+        All downstream tools (ask_boyce, get_schema, query_database) use them.
+```
+
+**No API key at any step.** The MCP protocol IS the communication channel. The agent
+that's already connected IS the LLM. This is how MCP is designed to work.
+
+**For non-MCP contexts** (CLI `boyce ask`, HTTP API): the existing QueryPlanner's
+BYOK LiteLLM can do classification as a fallback. But this is the secondary path —
+same as Mode B in ask_boyce. The primary path is host-LLM mediated.
+
+**Broader object introspection** — `PostgresAdapter.get_schema_summary()` currently
+only queries `information_schema.tables` + `information_schema.columns`. Extend to:
+- Views (distinguish from base tables via `table_type`)
+- Materialized views (Postgres: `pg_matviews`; Redshift: `stv_mv_info`)
+- Functions/procedures (signature only, not body — `pg_proc`)
+- Sequences (`information_schema.sequences`)
+- Custom types/enums (`pg_type` where `typtype = 'e'`)
+
+**Entity type field** — Add `object_type` to `Entity` in `types.py`:
+```python
+class ObjectType(str, Enum):
+    TABLE = "table"
+    VIEW = "view"
+    MATERIALIZED_VIEW = "materialized_view"
+    EXTERNAL_TABLE = "external_table"
+```
+This is durable metadata (not LLM-dependent) and critical for the host LLM's
+reasoning: "this is a view, so it's a curated analytical surface, not raw data."
+
+**New MCP tool — `enrich_snapshot`:**
+```python
+@mcp.tool()
+async def enrich_snapshot(
+    snapshot_name: str = "default",
+    enrichments: dict = None,
+) -> str:
+    """Accept host-LLM classifications to improve snapshot quality."""
+```
+
+**Bitter Lesson check:** PASSES. The structural introspection (what objects exist,
+their columns, their types) is durable — no model replaces the need for it. The
+semantic classification (what they MEAN) is exactly where LLMs add value. This is
+the model-compensation layer used correctly — a capability multiplier on a durable
+foundation, not scaffolding.
+
+**Files:** `types.py` (ObjectType, Entity.object_type), `adapters/postgres.py`
+(broader introspection queries), `server.py` (enrich_snapshot tool,
+classification_needed payload in ingest_source response)
 
 ### Step 1: Schema Extension — Quality Profile
 - Add `quality_profile` to `FieldDef` in `types.py`:
@@ -104,6 +196,11 @@ trustworthiness — this is the competitive wedge against dbt MCP.
 ---
 
 ## Acceptance Criteria
+- [ ] `ingest_source` on a live DSN returns `classification_needed` payload for host LLM
+- [ ] `enrich_snapshot` MCP tool accepts and stores host-LLM classifications
+- [ ] Zero API keys required for full warehouse ingestion in MCP context
+- [ ] Views, materialized views, functions, sequences introspected alongside tables
+- [ ] `Entity.object_type` distinguishes tables from views from materialized views
 - [ ] `FieldDef.quality_profile` populated at ingest time when DB is available
 - [ ] Drift detection warns when quality metrics change beyond threshold on re-ingest
 - [ ] `ask_boyce` response includes quality signals for referenced columns
@@ -116,3 +213,6 @@ trustworthiness — this is the competitive wedge against dbt MCP.
 - **Ingest-time profiling performance:** Profiling every column on a large warehouse could be slow. Mitigation: profile only columns referenced in the snapshot's field definitions, not every column in the database. Add `--skip-profiling` flag.
 - **Drift threshold calibration:** What's a reasonable default `drift_threshold`? Start with 0.10 (10% change in null_pct triggers warning). Make configurable.
 - **Planner eval is model-dependent:** Accuracy will vary by LLM provider. Document which model was used for each benchmark run. Consider running against 2-3 models.
+- **Host-LLM classification quality variance:** Different host LLMs will classify differently. The enrichment is optional and additive — the mechanical classification is the baseline, host-LLM enrichment improves it. Bad enrichment can't make things worse than mechanical (store confidence scores, gate on them).
+- **Classification payload size:** A 200-table warehouse with 2000+ columns could produce a large classification_needed payload. Cap at most-ambiguous entities (e.g., top 50 needing review) and let the host LLM request more via pagination or a `classify_more` pattern.
+- **enrich_snapshot idempotency:** Multiple enrichment calls must merge, not overwrite. Store enrichment provenance (which call provided which classification) so re-enrichment is safe.

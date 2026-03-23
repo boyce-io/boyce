@@ -2,7 +2,7 @@
 **For testing week of March 9 — one guide per MCP host.**
 
 All MCP hosts use **Path 1** (no Boyce LLM key needed). The host's own LLM drives
-the interaction using `get_schema` + `build_sql`. `BOYCE_PROVIDER` is only required
+the interaction using `get_schema` + `ask_boyce`. `BOYCE_PROVIDER` is only required
 for CLI (`boyce ask`) and HTTP API (`boyce serve --http`).
 
 ---
@@ -85,7 +85,7 @@ which boyce          # e.g. /Users/willwright/.local/bin/boyce
 **What to verify:**
 - Boyce tools available in Cursor chat
 - `get_schema` works
-- `ask_boyce` (Mode A) produces deterministic SQL from a `StructuredFilter`
+- `ask_boyce` with a `StructuredFilter` produces deterministic SQL
 
 ---
 
@@ -258,7 +258,7 @@ can be generated with `pg_dump --schema-only` and passed to `ingest_source` with
 After connecting each host, run these in order:
 
 1. `get_schema` — returns entities? Shows `film`, `rental`, `customer`, `payment`?
-2. `ask_boyce` (Mode A) with a StructuredFilter — produces deterministic SQL?
-3. `ask_boyce` (Mode B/C) "how many rentals were there last month?" — full pipeline works?
+2. `ask_boyce` with a StructuredFilter — produces deterministic SQL?
+3. `ask_boyce` "how many rentals were there last month?" (CLI/HTTP path or schema guidance fallback) — full pipeline works?
 4. `validate_sql` with a hand-written query — EXPLAIN pre-flight and lint run?
 5. `ask_boyce` with equality filter on nullable column — NULL trap warning fires?

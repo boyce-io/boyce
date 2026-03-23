@@ -4,10 +4,10 @@ Boyce uses [LiteLLM](https://docs.litellm.ai) for its internal query planner —
 that converts natural language to a `StructuredFilter`. You can point it at any LiteLLM-supported
 provider, including fully local models running on your own hardware.
 
-**When you need this:** Only if you use `ask_boyce` Mode B (NL input, no host LLM) — i.e. the
-CLI (`boyce ask "..."`), HTTP API, or a non-MCP integration. If you use Claude Desktop, Cursor,
-Claude Code, or any other MCP host, the host's LLM handles NL reasoning and **you do not need
-to configure a provider at all.**
+**When you need this:** Only for the CLI (`boyce ask "..."`), HTTP API (`boyce serve --http`), or
+non-MCP integrations — where Boyce's internal query planner handles NL→SQL. If you use Claude
+Desktop, Cursor, Claude Code, or any other MCP host, the host's LLM handles NL reasoning and
+**you do not need to configure a provider at all.**
 
 ---
 
@@ -173,8 +173,8 @@ model (Claude, GPT-4, etc.) via that host's normal API. Boyce itself makes no ou
 
 | Variable | Required | Example |
 |---|---|---|
-| `BOYCE_PROVIDER` | Yes (Mode B) | `ollama`, `openai`, `anthropic` |
-| `BOYCE_MODEL` | Yes (Mode B) | `ollama/llama3.2`, `gpt-4o-mini` |
+| `BOYCE_PROVIDER` | Yes (CLI/HTTP only) | `ollama`, `openai`, `anthropic` |
+| `BOYCE_MODEL` | Yes (CLI/HTTP only) | `ollama/llama3.2`, `gpt-4o-mini` |
 | `OLLAMA_API_BASE` | Ollama only (non-default URL) | `http://192.168.1.100:11434` |
 | `OPENAI_API_BASE` | vLLM only | `http://localhost:8000/v1` |
 | `OPENAI_API_KEY` | vLLM only | Any string (auth not enforced by default) |

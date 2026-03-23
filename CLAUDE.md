@@ -24,6 +24,19 @@ Follows the Mandatory Model Gate defined in `~/.claude/CLAUDE.md`.
 
 ---
 
+## Ops Layer
+
+This project uses the Convergent Methods ops layer protocol. The canonical protocol definition lives in the CM root CLAUDE.md (`/Users/willwright/ConvergentMethods/CLAUDE.md`). Follow all ops layer behaviors defined there: session boot sequence, session end protocol, amendment protocol, session log rotation, status bar, and directory scope rules.
+
+On session boot, read `ROADMAP.md` and `SESSION_LOG.md` at the repo root before doing any work. These files govern phase sequencing and session continuity.
+
+**Status bar:** Every response footer must include, alongside existing lines (docs updated, persistence receipts, timestamp):
+```
+Project: Boyce | Phase: [current phase from ROADMAP.md]
+```
+
+---
+
 ## Repo Folder Visibility Convention
 
 Every top-level folder signals its audience by its prefix:
@@ -114,9 +127,54 @@ SQL string
     │
     ▼  Stage 4: lint_redshift_compat(sql)            [compat_risks list]
     │
-    ▼  JSON response  {sql, validation, compat_risks, snapshot_id,
+    ▼  Stage 5: _build_advertising_layer()          [response marketing]
+    │            next_step, present_to_user, data_reality
+    │
+    ▼  JSON response  {next_step, present_to_user?, data_reality?,
+                       sql, validation, compat_risks, snapshot_id,
                        entities_resolved, null_trap_warnings}
 ```
+
+### Response Advertising Layer
+
+Every successful tool response includes behavioral fields ABOVE the data payload
+via `_build_advertising_layer()`. See `../../MASTER.md` "Behavioral Design
+Framework" for the paradigm. This section covers Boyce-specific implementation.
+
+**Response schema (advertising fields precede primary payload):**
+
+```python
+{
+    "next_step": str,              # Always present. Directive language.
+    "present_to_user": str | None, # Loss-aversion finding. Only when material.
+    "data_reality": dict | None,   # Snapshot-based column insights for touched columns.
+    "environment_suggestions": list | None,  # First-call-per-session only. Max 3 items.
+    # ... primary payload (sql, rows, validation, etc.) ...
+}
+```
+
+**Per-tool `next_step` patterns:**
+
+| Tool | Condition | next_step |
+|------|-----------|-----------|
+| `ingest_source` | success | "Snapshot '{name}' is ready. Use get_schema to explore tables, or ask_boyce..." |
+| `ingest_definition` | success | "Definition stored. ask_boyce will apply it automatically..." |
+| `get_schema` | success | "Use this schema to construct a StructuredFilter for ask_boyce..." |
+| `ask_boyce` | SQL compiled successfully | "Pass the SQL above to query_database to execute it." |
+| `ask_boyce` | No StructuredFilter + no credentials | "Call ask_boyce(structured_filter=ready_filter) now..." |
+| `validate_sql` | clean | "SQL passed all checks. Pass to query_database to execute." |
+| `validate_sql` | issues found | "Issues detected. Resubmit through ask_boyce for automatic remediation..." |
+| `query_database` | clean | "Query complete. Use profile_data on any column..." |
+| `query_database` | NULL risk | "Results may be incomplete. Resubmit through ask_boyce for NULL-safe compilation." |
+| `profile_data` | success | "Use these distributions to inform your next ask_boyce query..." |
+
+**`data_reality` fires when:** SQL references a nullable column in WHERE, GROUP BY,
+or JOIN ON clauses. Uses snapshot metadata only (no live DB queries). Resolves both
+qualified (`films.rating`) and bare (`rating`) column references against the snapshot
+via FROM clause extraction.
+
+**`present_to_user` fires when:** NULL risk detected, EXPLAIN failure, or Redshift
+compat issues. Suppressed on clean queries to prevent noise fatigue.
 
 ### StructuredFilter Shape
 
@@ -158,7 +216,10 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 
 | Concern | File |
 |---|---|
-| **MCP entry point** (7 tools) | `server.py` |
+| **MCP entry point** (8 tools) | `server.py` |
+| **Response advertising layer** | `server.py` — `_build_advertising_layer()` (next_step, present_to_user, data_reality, environment_suggestions) |
+| **DSN persistence** | `connections.py` — `ConnectionStore` (`_local_context/connections.json`) |
+| **Environment diagnostics** | `doctor.py` — `run_doctor()`, 5 check functions, `boyce doctor` CLI |
 | **Deterministic kernel** | `kernel.py` — `process_request(snapshot, filter)` |
 | **Semantic graph** | `graph.py` — `SemanticGraph` (NetworkX MultiDiGraph) |
 | **Protocol contract** | `types.py` — `SemanticSnapshot`, `Entity`, `FieldDef`, `JoinDef` |
@@ -174,19 +235,20 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 | Validation + hashing | `validation.py` — `validate_snapshot()`, `_compute_snapshot_hash()` |
 | Audit log | `audit.py` — `AuditLog` (append-only JSONL) |
 
-### MCP Tools (7)
+### MCP Tools (8)
 
 | Tool | Purpose |
 |---|---|
 | `ingest_source` | Parse + ingest a SemanticSnapshot from any supported format |
 | `ingest_definition` | Store a certified business definition (injected into planner context at query time) |
-| `get_schema` | Return full schema (entities, fields, joins) + StructuredFilter docs for host-LLM reasoning |
-| `ask_boyce` | Tri-modal NL→SQL: Mode A (StructuredFilter, zero credentials), Mode B (NL+LLM), Mode C (NL fallback) |
+| `get_schema` | Return full schema (entities, fields, joins) + authority claim + StructuredFilter docs |
+| `ask_boyce` | NL→SQL: MCP host path (StructuredFilter, zero credentials), CLI/HTTP path (NL+LLM), schema guidance fallback (returns ready_filter) |
 | `validate_sql` | Validate hand-written SQL — EXPLAIN pre-flight, Redshift lint, NULL risk — without executing |
-| `query_database` | Execute read-only SELECT against live database (two-level write rejection) |
+| `query_database` | Execute read-only SELECT with live NULL trap profiling, EXPLAIN pre-flight, metadata query detection |
 | `profile_data` | Profile a column: null count/pct, distinct count, min/max |
+| `check_health` | Operational health check — DB connectivity, snapshot freshness, actionable fix commands |
 
-Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host LLM uses `get_schema` + `ask_boyce` Mode A instead.
+Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host LLM uses `get_schema` + `ask_boyce` directly.
 
 ### Key Tests / Scripts
 
@@ -198,6 +260,9 @@ Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host 
 | `tests/test_parsers.py` | All 10 parsers: detect, parse, protocol compliance, registry |
 | `tests/test_discovery.py` | Auto-discovery: detect, resolve, ingest for all parser types (27 tests) |
 | `tests/test_init.py` | Init wizard: detect_hosts, generate_server_entry, merge_config |
+| `tests/test_advertising.py` | Response advertising layer: column extraction, bare column resolution, next_step/present_to_user/data_reality/environment_suggestions, integration (34 tests) |
+| `tests/test_connections.py` | ConnectionStore: save/load/touch/remove/list_all, DSN persistence, edge cases (16 tests) |
+| `tests/test_doctor.py` | Doctor checks: editors, database, snapshots, sources, server, orchestrator, JSON output (14 tests) |
 | `tests/live_fire/run_mission.py` | Full pipeline: Docker Postgres + LLM + EXPLAIN |
 | `demo/magic_moment/verify_demo.py` | Demo smoke test — NULL Trap distribution check |
 | `quickstart.sh` | Dev setup: install, `.env` template, verify_eyes |

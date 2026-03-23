@@ -17,7 +17,7 @@ First functional release. `0.0.1` was a PyPI namespace placeholder only.
   - `ingest_source` — parse SemanticSnapshot from dbt manifest, dbt project, LookML, DDL, SQLite, Django, SQLAlchemy, Prisma, CSV, Parquet (10 parsers, auto-detected)
   - `ingest_definition` — store certified business definitions, auto-injected at query time
   - `get_schema` — return full schema context + StructuredFilter documentation for host-LLM reasoning
-  - `ask_boyce` — tri-modal NL→SQL pipeline (Mode A: StructuredFilter, Mode B: NL+credentials, Mode C: NL fallback)
+  - `ask_boyce` — NL→SQL pipeline (MCP host path: StructuredFilter, zero credentials; CLI/HTTP path: NL+BOYCE_PROVIDER; schema guidance fallback: NL, no credentials)
   - `validate_sql` — EXPLAIN pre-flight + Redshift lint + NULL risk analysis without executing
   - `query_database` — read-only SELECT execution against live database (write rejection at two layers)
   - `profile_data` — column profiling: null %, distinct count, min/max
@@ -28,7 +28,7 @@ First functional release. `0.0.1` was a PyPI namespace placeholder only.
 - **`boyce serve --http` HTTP API** — Starlette REST API with Bearer auth
 - **Deterministic SQL kernel** — same inputs produce byte-for-byte identical SQL, zero LLM calls
 - **SemanticGraph** — in-memory NetworkX MultiDiGraph with Dijkstra join-path resolution
-- **ask_boyce tri-modal routing** — Mode A (host LLM + StructuredFilter, zero credentials), Mode B (NL + BOYCE_PROVIDER), Mode C (NL fallback, returns schema guidance)
+- **ask_boyce routing** — MCP host path (StructuredFilter, zero credentials), CLI/HTTP path (NL + BOYCE_PROVIDER), schema guidance fallback (NL, no credentials)
 - **NULL trap detection** — profiles equality-filtered columns for NULL distributions before returning SQL
 - **EXPLAIN pre-flight** — validates every generated query at planning time via PostgresAdapter
 - **Redshift safety layer** — lint + NULLIF cast rewrites for Redshift 1.0 (PG 8.0.2 base): LATERAL, JSONB, REGEXP_COUNT, CONCAT, STRING_AGG, FILTER(WHERE), RECURSIVE CTE
@@ -66,7 +66,7 @@ First functional release. `0.0.1` was a PyPI namespace placeholder only.
 ### Architecture
 
 - `src` layout (`boyce/src/boyce/`) — eliminates CWD namespace conflict
-- `build_sql` and `solve_path` internalized — not MCP tools; host LLM constructs StructuredFilter and calls `ask_boyce` Mode A
+- `build_sql` and `solve_path` internalized — not MCP tools; host LLM constructs StructuredFilter and calls `ask_boyce` directly
 - `validate_sql` added as new MCP tool (EXPLAIN pre-flight + lint + NULL risk without executing)
 - Intent classifier removed — CLI and HTTP API route directly through `ask_boyce`
 
