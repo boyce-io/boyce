@@ -130,6 +130,7 @@ class MCPHost:
     servers_key: str = "mcpServers"
     post_config_note: Optional[str] = None
     entry_extra: Optional[Dict[str, str]] = None
+    restart_instruction: Optional[str] = None
 
 
 def _claude_desktop_path() -> Path:
@@ -189,6 +190,7 @@ def _host_specs() -> List[Dict]:
             "project_level": False,
             "servers_key": "mcpServers",
             "installed_check": lambda: _claude_desktop_path().exists(),
+            "restart_instruction": "Restart Claude Desktop",
         },
         {
             "name": "Cursor",
@@ -196,6 +198,9 @@ def _host_specs() -> List[Dict]:
             "project_level": True,
             "servers_key": "mcpServers",
             "installed_check": _is_cursor_installed,
+            "restart_instruction": (
+                "Restart Cursor, then Settings → Tools & MCP → enable \"boyce\""
+            ),
         },
         {
             "name": "Claude Code",
@@ -203,6 +208,7 @@ def _host_specs() -> List[Dict]:
             "project_level": True,
             "servers_key": "mcpServers",
             "installed_check": lambda: (Path.cwd() / ".claude").is_dir() or bool(shutil.which("claude")),
+            "restart_instruction": "Restart Claude Code",
         },
         {
             "name": "VS Code",
@@ -211,6 +217,7 @@ def _host_specs() -> List[Dict]:
             "servers_key": "servers",
             "installed_check": _is_vscode_installed,
             "entry_extra": {"type": "stdio"},
+            "restart_instruction": "Restart VS Code",
         },
         {
             "name": "JetBrains / DataGrip",
@@ -222,6 +229,9 @@ def _host_specs() -> List[Dict]:
                 "  Tip: Also configure in IDE:\n"
                 "       Settings → Tools → AI Assistant → Model Context Protocol → Add"
             ),
+            "restart_instruction": (
+                "Restart IDE, then Settings → Tools → AI Assistant → MCP → enable \"boyce\""
+            ),
         },
         {
             "name": "Windsurf",
@@ -229,6 +239,7 @@ def _host_specs() -> List[Dict]:
             "project_level": False,
             "servers_key": "mcpServers",
             "installed_check": _is_windsurf_installed,
+            "restart_instruction": "Restart Windsurf",
         },
     ]
 
@@ -267,6 +278,7 @@ def detect_hosts(specs: Optional[List[Dict]] = None) -> List[MCPHost]:
             servers_key=servers_key,
             post_config_note=spec.get("post_config_note"),
             entry_extra=spec.get("entry_extra"),
+            restart_instruction=spec.get("restart_instruction"),
         ))
 
     return hosts
@@ -1091,11 +1103,10 @@ def _run_wizard_noninteractive(
         result["sources_ingested"] = _run_auto_discovery_silent()
 
     # Write configs
+    configured: List[MCPHost] = []
     if selected:
         first_dsn = db_entries[0][1] if db_entries else None
         server_entry = generate_server_entry(db_url=first_dsn)
-
-        configured: List[MCPHost] = []
         for host in selected:
             try:
                 entry = {**server_entry, **(host.entry_extra or {})} if host.entry_extra else server_entry
@@ -1120,11 +1131,25 @@ def _run_wizard_noninteractive(
                 print(f"Error: {result['error']}", file=sys.stderr)
             return 1
 
+    # Collect successfully configured hosts
+    done = configured
+
     # Output
     if json_output:
+        # Add restart instructions to JSON output
+        restart_map = {}
+        for h in done:
+            if h.restart_instruction:
+                restart_map[h.name] = h.restart_instruction
+        if restart_map:
+            result["next_steps"] = restart_map
         print(json.dumps(result, indent=2))
     else:
         _print_noninteractive_summary(result)
+        # Print per-editor restart instructions
+        for h in done:
+            instruction = h.restart_instruction or f"Restart {h.name}"
+            print(f"  {h.name}:  {instruction}")
 
     return 0
 
@@ -1212,8 +1237,11 @@ def _run_wizard_interactive() -> int:
     _print_summary(configured, db_entries, source_entries)
 
     if configured:
-        editor_names = ", ".join(h.name for h in configured)
-        print(f"  Restart {editor_names} to pick up the new server.\n")
+        print("  Next steps:")
+        for h in configured:
+            instruction = h.restart_instruction or f"Restart {h.name}"
+            print(f"    {h.name}:  {instruction}")
+        print()
 
     return 0 if configured else 1
 

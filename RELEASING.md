@@ -7,11 +7,11 @@ Run top-to-bottom. Do not skip steps. Each step has a verification.
 
 ## Pre-Publish Gate (must all be true)
 
-- [ ] Cursor cross-platform test PASSED
+- [x] Cursor cross-platform test PASSED ✓ 2026-03-23 (6/6 clean — ingest, schema, Mode C→A funnel, NULL trap bypass, joins, Redshift lint)
 - [x] All tests pass: `python -m pytest boyce/tests/ -v` (438 pass, 6 skip) ✓ 2026-03-23
 - [x] CLI smoke checks pass: `python -m pytest boyce/tests/test_cli_smoke.py -v` ✓ 2026-03-23
 - [x] Clean venv install works: `uv venv /tmp/boyce-release && uv pip install -e boyce/ && /tmp/boyce-release/bin/boyce --help` ✓ 2026-03-23
-- [ ] Version number decided: __________ (write it here)
+- [x] Version number decided: 0.1.0 ✓ 2026-03-23 (first public release, API may evolve; 1.0.0 reserved for SemanticSnapshot spec stabilization)
 - [x] `git status` is clean on main branch ✓ 2026-03-23
 - [x] No open PRs that should be merged first ✓ 2026-03-23
 

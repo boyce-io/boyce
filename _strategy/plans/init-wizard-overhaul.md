@@ -1,5 +1,5 @@
 # Plan: Init Wizard Overhaul
-**Status:** Build complete. 2 acceptance criteria remain (end-to-end walkthrough, install cycle).
+**Status:** COMPLETE. Build done, acceptance criteria verified via Cursor cross-platform testing (2026-03-23).
 **Created:** 2026-03-16
 **Updated:** 2026-03-16
 
@@ -36,8 +36,8 @@ Commits: `35edfa5`, `428d4bb`, `7a8577e`, `7e96bbe`
 
 ## Remaining Acceptance Criteria
 
-1. [ ] Wizard end-to-end: install → configure editors → connect DB → discover sources → summary
-2. [ ] Install/uninstall cycle: `pip uninstall boyce && pip install boyce` → wizard identical results
+1. [x] Wizard end-to-end: install → configure editors → connect DB → discover sources → summary
+2. [x] Install/uninstall cycle: `pip uninstall boyce && pip install boyce` → wizard identical results
 
 ---
 
