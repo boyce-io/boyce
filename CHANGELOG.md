@@ -26,6 +26,10 @@ First functional release. `0.0.1` was a PyPI namespace placeholder only.
 - **`boyce-scan` CLI** — walks directories, auto-detects all parseable sources, produces JSON report
 - **`boyce ask "..."` CLI** — NL→SQL, output to stdout (requires `BOYCE_PROVIDER` + `BOYCE_MODEL`)
 - **`boyce chat "..."` CLI** — conversational mode routing through `ask_boyce`
+- **`boyce update [--yes]` CLI** — self-update with install method detection (pipx/uv/pip), confirmation, verification, and editor-specific restart instructions
+- **`boyce doctor [--json]` CLI** — 6 environment health checks: version, editors, database, snapshots, sources, server
+- **Version lifecycle** — PyPI version check in `check_health` and `environment_suggestions`, 24h disk cache, 48h supply chain cooldown, nudge filtering (patch-only suppressed), stale-process detection (running vs installed), graceful self-termination (opt-in via `BOYCE_AUTO_RESTART_ON_UPDATE`)
+- **DSN persistence** — `ConnectionStore` saves database connections across server restarts
 - **`boyce serve --http` HTTP API** — Starlette REST API with Bearer auth
 - **Deterministic SQL kernel** — same inputs produce byte-for-byte identical SQL, zero LLM calls
 - **SemanticGraph** — in-memory NetworkX MultiDiGraph with Dijkstra join-path resolution

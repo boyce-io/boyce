@@ -8,7 +8,7 @@ Run top-to-bottom. Do not skip steps. Each step has a verification.
 ## Pre-Publish Gate (must all be true)
 
 - [ ] Cursor cross-platform test PASSED
-- [x] All tests pass: `python -m pytest boyce/tests/ -v` (395 pass, 6 skip) ✓ 2026-03-23
+- [x] All tests pass: `python -m pytest boyce/tests/ -v` (438 pass, 6 skip) ✓ 2026-03-23
 - [x] CLI smoke checks pass: `python -m pytest boyce/tests/test_cli_smoke.py -v` ✓ 2026-03-23
 - [x] Clean venv install works: `uv venv /tmp/boyce-release && uv pip install -e boyce/ && /tmp/boyce-release/bin/boyce --help` ✓ 2026-03-23
 - [ ] Version number decided: __________ (write it here)

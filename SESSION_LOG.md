@@ -48,3 +48,31 @@
 - Phase 1 done condition should include "version lifecycle features (PyPI version check in check_health, `boyce update` subcommand)" — these were identified during Cursor testing as experience bugs that would cause user bounce. Not net-new scope; they're behavioral fixes for the existing check_health and CLI surfaces.
 
 ---
+
+## 2026-03-23 (continued) — Pre-Publish Finalization: Version Lifecycle Build
+
+**Accomplishments:**
+- Built all 12 version lifecycle items from Opus-reviewed plan (CC_HANDOFF_VERSION_LIFECYCLE.md)
+- New module: `version_check.py` — PyPI check, 24h disk cache, install detection (pipx/uv/pip), stale-process detection, 48h supply chain cooldown, nudge filtering, restart instructions
+- New CLI: `boyce update [--yes]` — self-update with confirmation, verification, editor-specific restart instructions
+- Enhanced `boyce --version` — shows update availability from cache
+- `check_version()` added as 6th doctor check (renders first in output)
+- Version info wired into `check_health()` response and `environment_suggestions`
+- Graceful self-termination gated behind `BOYCE_AUTO_RESTART_ON_UPDATE`
+- Added `packaging>=21.0` as explicit dependency
+- 43 new tests (37 version_check + 6 doctor), 438 total, 24 CLI smoke checks
+- Updated CLAUDE.md with new module, env vars, test inventory
+- Integrated Opus feedback: packaging as explicit dep, Cursor restart instruction fixed, self-termination caveat documented, post-build doc updates planned
+
+**Incomplete:**
+- Cursor cross-platform test (needs restart from ground up — initial attempt used wrong config)
+- Manual testing of wizard + install + version flows
+- Doc updates: README, RELEASING template still need version lifecycle mentions (Will's voice)
+
+**Next step:** Resume Cursor test from scratch with proper setup. Manual test `boyce doctor` and `boyce update` UX.
+**Gate status:** HITL-gated (Cursor test + version number + publish go/no-go)
+
+**Proposed amendments:**
+- None (prior amendment re: version lifecycle features was implemented this session)
+
+---

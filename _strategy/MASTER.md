@@ -711,8 +711,9 @@ Conference talk submitted to at least one venue.
 - Idempotent re-runs: `boyce init` shows "configured ✓" for already-configured editors, detects existing DB config
 - Agent-guided setup docs: `docs/QUICK_START.md` with platform-specific instructions
 - Arrogant archetype safety: live NULL trap in query_database, ready_filter (Mode C), get_schema authority claim, information_schema detection
-- **395 pytest tests (389 pass, 6 skipped when pyarrow absent), all passing in ~10s**
-- **23 CLI smoke checks** all passing (`test_cli_smoke.py`)
+- Version lifecycle: `boyce update` (self-update), PyPI version check in check_health + environment_suggestions, 24h disk cache, stale-process detection, 48h supply chain cooldown, nudge filtering (patch suppressed), graceful self-termination (opt-in)
+- **438 pytest tests (432 pass, 6 skipped when pyarrow absent), all passing in ~11s**
+- **24 CLI smoke checks** all passing (`test_cli_smoke.py`)
 
 ### Delivery surface
 | Surface | Entry point | Use case |
@@ -721,6 +722,7 @@ Conference talk submitted to at least one venue.
 | Direct CLI | `boyce ask "..."` | Shell scripts, one-off queries |
 | Conversational CLI | `boyce chat "..."` | Interactive terminal use |
 | Diagnostics CLI | `boyce doctor [--json]` | Environment health checks, agent-invokable diagnostics |
+| Update CLI | `boyce update [--yes]` | Self-update (detects pipx/uv/pip, confirms, upgrades) |
 | HTTP REST | `boyce serve --http` | Web dashboards, cron jobs |
 | Python library | `from boyce import kernel` | Custom agent integrations |
 
@@ -751,7 +753,7 @@ when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension
         verify ingest + get_schema + query_database flow works
   - [ ] Content consistency sweep: all 8 public surfaces refreshed for 8 tools,
         boyce doctor, init flags, ready_filter, DataGrip as named platform
-- **395 tests, 23 CLI smoke checks, all green**
+- **438 tests, 24 CLI smoke checks, all green** (version lifecycle added 43 tests)
 - Full session-by-session log: `_strategy/history/testing-sprint-log.md`
 
 ### Key files
