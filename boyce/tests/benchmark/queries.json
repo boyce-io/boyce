@@ -1,0 +1,137 @@
+{
+  "benchmark": "Boyce Preliminary Benchmark — Pagila (Tier 1)",
+  "database": "postgresql://boyce:password@localhost:5433/pagila",
+  "snapshot_name": "pagila",
+  "queries": [
+    {
+      "id": "Q01",
+      "category": "single_entity_aggregation",
+      "nl_prompt": "How many films are in each rating category?",
+      "expected_sql_pattern": "SELECT.*rating.*COUNT.*FROM.*film.*GROUP BY.*rating",
+      "expected_tables": ["film"],
+      "expected_row_count": 5,
+      "expected_top_result": {"rating": "PG-13", "count": 223},
+      "boyce_capability_tested": "single-entity GROUP BY, correct column selection"
+    },
+    {
+      "id": "Q02",
+      "category": "multi_entity_join",
+      "nl_prompt": "Top 5 customers by total number of rentals",
+      "expected_sql_pattern": "SELECT.*customer.*COUNT.*rental.*JOIN.*GROUP BY.*ORDER BY.*DESC.*LIMIT",
+      "expected_tables": ["customer", "rental"],
+      "expected_row_count": 5,
+      "expected_top_result": {"first_name": "ELEANOR", "last_name": "HUNT", "count": 46},
+      "boyce_capability_tested": "2-table join, aggregation, ORDER BY + LIMIT"
+    },
+    {
+      "id": "Q03",
+      "category": "complex_join",
+      "nl_prompt": "Total revenue by film category, top 5",
+      "expected_sql_pattern": "SELECT.*category.*SUM.*amount.*JOIN.*GROUP BY.*ORDER BY.*DESC",
+      "expected_tables": ["category", "film_category", "inventory", "rental", "payment"],
+      "expected_row_count": 5,
+      "expected_top_result": {"category": "Foreign", "revenue": 10507.67},
+      "boyce_capability_tested": "5-table join chain, Dijkstra path resolution, revenue aggregation"
+    },
+    {
+      "id": "Q04",
+      "category": "single_entity_aggregation",
+      "nl_prompt": "How many distinct films does each store have in inventory?",
+      "expected_sql_pattern": "SELECT.*store.*COUNT.*DISTINCT.*film.*JOIN.*GROUP BY",
+      "expected_tables": ["store", "inventory"],
+      "expected_row_count": 2,
+      "expected_top_result": {"store_id": 2, "films": 762},
+      "boyce_capability_tested": "COUNT DISTINCT, 2-table join"
+    },
+    {
+      "id": "Q05",
+      "category": "multi_entity_join",
+      "nl_prompt": "Which actors appear in the most films? Top 5",
+      "expected_sql_pattern": "SELECT.*actor.*COUNT.*film.*JOIN.*GROUP BY.*ORDER BY.*DESC",
+      "expected_tables": ["actor", "film_actor"],
+      "expected_row_count": 5,
+      "expected_top_result": {"first_name": "GINA", "last_name": "DEGENERES", "count": 42},
+      "boyce_capability_tested": "bridge table join (film_actor), aggregation"
+    },
+    {
+      "id": "Q06",
+      "category": "complex_join",
+      "nl_prompt": "Which countries have the most customers? Top 5",
+      "expected_sql_pattern": "SELECT.*country.*COUNT.*customer.*JOIN.*GROUP BY.*ORDER BY.*DESC",
+      "expected_tables": ["customer", "address", "city", "country"],
+      "expected_row_count": 5,
+      "expected_top_result": {"country": "India", "customers": 60},
+      "boyce_capability_tested": "4-table join chain (customer→address→city→country), Dijkstra resolution"
+    },
+    {
+      "id": "Q07",
+      "category": "temporal_aggregation",
+      "nl_prompt": "Average rental duration in days by film rating",
+      "expected_sql_pattern": "SELECT.*rating.*AVG.*FROM.*film.*JOIN.*rental.*GROUP BY.*rating",
+      "expected_tables": ["film", "inventory", "rental"],
+      "expected_row_count": 5,
+      "expected_top_result": {"rating": "G", "avg_days": 4.6},
+      "boyce_capability_tested": "3-table join, date arithmetic, AVG aggregation"
+    },
+    {
+      "id": "Q08",
+      "category": "null_trap",
+      "nl_prompt": "What is the original language of each film?",
+      "expected_sql_pattern": "SELECT.*film.*language.*original_language_id",
+      "expected_tables": ["film", "language"],
+      "expected_row_count": 1000,
+      "expected_top_result": {"all_null": true, "null_count": 1000},
+      "boyce_capability_tested": "NULL trap detection — original_language_id is 100% NULL, query returns all NULLs",
+      "safety_check": "Boyce should warn about original_language_id being 100% NULL"
+    },
+    {
+      "id": "Q09",
+      "category": "dialect_safety",
+      "nl_prompt": "Show customer full names (first and last name combined)",
+      "expected_sql_pattern": "SELECT.*first_name.*last_name.*FROM.*customer",
+      "expected_tables": ["customer"],
+      "expected_row_count": 599,
+      "expected_top_result": {"full_name": "MARY SMITH"},
+      "boyce_capability_tested": "String concatenation — Boyce should use || not CONCAT() for Redshift safety",
+      "safety_check": "Redshift lint should flag CONCAT() if model uses it"
+    },
+    {
+      "id": "Q10",
+      "category": "filter_aggregation",
+      "nl_prompt": "How many rentals have not been returned yet?",
+      "expected_sql_pattern": "SELECT.*COUNT.*FROM.*rental.*WHERE.*return_date.*IS.*NULL",
+      "expected_tables": ["rental"],
+      "expected_row_count": 1,
+      "expected_top_result": {"count": 183},
+      "boyce_capability_tested": "IS NULL filter (not equality), single-table aggregation"
+    },
+    {
+      "id": "Q11",
+      "category": "simple_aggregation",
+      "nl_prompt": "What is the total revenue from all payments?",
+      "expected_sql_pattern": "SELECT.*SUM.*amount.*FROM.*payment",
+      "expected_tables": ["payment"],
+      "expected_row_count": 1,
+      "expected_top_result": {"total_revenue": 67416.51},
+      "boyce_capability_tested": "SUM aggregation, single table, no joins"
+    },
+    {
+      "id": "Q12",
+      "category": "complex_join_with_filter",
+      "nl_prompt": "List customers from the United States",
+      "expected_sql_pattern": "SELECT.*customer.*country.*JOIN.*WHERE.*United States",
+      "expected_tables": ["customer", "address", "city", "country"],
+      "expected_row_count": 36,
+      "expected_top_result": {"country": "United States"},
+      "boyce_capability_tested": "4-table join with WHERE filter, Dijkstra path resolution"
+    }
+  ],
+  "scoring": {
+    "query_accuracy": "Results match expected_top_result and expected_row_count",
+    "join_correctness": "SQL uses correct tables from expected_tables",
+    "null_safety": "Q08 triggers NULL trap warning",
+    "dialect_safety": "Q09 uses || not CONCAT()",
+    "explain_verified": "All queries pass EXPLAIN pre-flight",
+    "determinism": "Same prompt produces same SQL across 3 runs"
+  }
+}
