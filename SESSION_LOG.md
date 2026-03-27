@@ -76,3 +76,34 @@
 - None (prior amendment re: version lifecycle features was implemented this session)
 
 ---
+
+## 2026-03-27 — Phase 4: Preliminary Benchmark Build
+
+**Accomplishments:**
+- Reconstructed interrupted build plan after terminal crash
+- Committed all Phase 3 + Phase 4 setup work (3 commits, previously uncommitted)
+  - Phase 3 source: Codex/TOML, response guidance tests, 448 tests green
+  - Phase 3 docs: ROADMAP, MASTER, CLAUDE.md, handoff archive, OPUS_BRIEF
+  - Phase 4 setup: phase-4 plan doc, phase-5 plan doc, queries.json (12 queries)
+- Built `boyce/tests/benchmark/run_benchmark.py` — Phase 4 harness
+  - Mode A: plan_query → kernel.process_request → execute → score
+  - Mode B: direct LiteLLM → SQL → execute → score
+  - Metrics: row count (±5%), top result, join correctness, EXPLAIN verified
+  - Safety flags: Q08 null trap (LEFT JOIN), Q09 dialect (|| vs CONCAT())
+  - Output: Markdown + JSON to _strategy/research/preliminary-benchmark.md
+- Pushed 4 commits to main (3bc64f2 → 7d21460)
+- Flagged: .claude/handoffs/_archive/the actual convo with opus.md has a sensitive client name — blocked by pre-commit hook, needs sensitive-term scrub before it can be committed
+
+**Incomplete:**
+- Benchmark not yet executed (requires Pagila Docker + LLM API key at runtime)
+
+**Next step:** Run the benchmark.
+    BOYCE_PROVIDER=anthropic BOYCE_MODEL=claude-haiku-4-5-20251001 \
+    ANTHROPIC_API_KEY=... \
+    python boyce/tests/benchmark/run_benchmark.py
+**Gate status:** Agent-gated (execution is mechanical once env vars are set)
+
+**Proposed amendments:**
+- None
+
+---

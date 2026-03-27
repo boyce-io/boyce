@@ -1,6 +1,7 @@
 # Plan: Phase 4 — Preliminary Benchmark (Pagila)
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 **Created:** 2026-03-27
+**Last updated:** 2026-03-27
 **Model:** Opus · high (design), Sonnet · medium (harness build)
 **Estimated effort:** ~1-2 days
 
@@ -73,7 +74,13 @@ Full benchmark (Phase 10): add Codex.
 
 ## Acceptance Criteria
 
-- [ ] 10-15 ground-truth queries defined with expected results
-- [ ] Benchmark harness runs Mode A and Mode B
+- [x] 10-15 ground-truth queries defined with expected results
+- [x] Benchmark harness runs Mode A and Mode B
 - [ ] At least one concrete comparison number ready for distribution copy
 - [ ] Results written to `_strategy/research/preliminary-benchmark.md`
+
+## Build Status
+
+- `boyce/tests/benchmark/queries.json` — 12 queries, all categories covered (2026-03-27)
+- `boyce/tests/benchmark/run_benchmark.py` — harness built (2026-03-27)
+- Next step: **Run the benchmark** against Pagila Docker + LLM API
