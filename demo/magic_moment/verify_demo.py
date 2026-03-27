@@ -4,7 +4,7 @@ verify_demo.py — Operation Trap Reveal
 Boyce Magic Moment Demo: Safety & Grounding
 
 Proves that the seeded subscriptions table contains the exact "trap" distribution
-used in the demo, and that Boyce's Eyes (profile_data) surface it.
+used in the demo, and that the Database Inspector (profile_data) surfaces it.
 
 Pipeline exercised:
     Postgres DB (Docker) → PostgresAdapter.profile_column()
@@ -379,7 +379,7 @@ async def run_trap_reveal() -> None:
     print("  subscriptions from the database.'")
     print()
     print("  The Trap: The table contains two hidden dangers the PM")
-    print("  doesn't know about. Boyce's Eyes reveal them both.")
+    print("  doesn't know about. The Database Inspector reveals them both.")
     print(SEP)
 
     # ------------------------------------------------------------------
@@ -426,7 +426,7 @@ async def run_trap_reveal() -> None:
         # ------------------------------------------------------------------
         # Step 4 — Eye #1: Profile the status column
         # ------------------------------------------------------------------
-        print(f"\n{BOLD}[4/5] Boyce Eyes — profile_data(subscriptions, status){RESET}")
+        print(f"\n{BOLD}[4/5] Database Inspector — profile_data(subscriptions, status){RESET}")
         print()
         print(f"  {CYAN}Naive query the PM requested:{RESET}")
         print()
@@ -444,7 +444,7 @@ async def run_trap_reveal() -> None:
         # ------------------------------------------------------------------
         # Step 5 — Eye #2: Profile cancelled users' last_login
         # ------------------------------------------------------------------
-        print(f"\n{BOLD}[5/5] Boyce Eyes — profile last_login WHERE status='cancelled'{RESET}")
+        print(f"\n{BOLD}[5/5] Database Inspector — profile last_login WHERE status='cancelled'{RESET}")
         print()
         print(f"  {CYAN}Before deleting, Boyce profiles the target rows:{RESET}")
         print()
@@ -471,7 +471,7 @@ async def run_trap_reveal() -> None:
         # ------------------------------------------------------------------
         print()
         print(SEP)
-        print(f"{GREEN}{BOLD}  TRAP CONFIRMED.  Boyce's Eyes caught both dangers.{RESET}")
+        print(f"{GREEN}{BOLD}  TRAP CONFIRMED.  The Database Inspector caught both dangers.{RESET}")
         print(SEP)
         print()
         print(f"  {BOLD}Danger 1 — The NULL Trap:{RESET}")

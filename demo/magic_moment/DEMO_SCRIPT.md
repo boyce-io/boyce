@@ -12,7 +12,7 @@
 
 Simple request. One `DELETE` statement. What could go wrong?
 
-**Everything.** The table has two hidden dangers — and a naive LLM would walk right into both.
+**Everything.** The table has two hidden dangers — and an unguarded LLM would walk right into both.
 
 ---
 
@@ -68,7 +68,7 @@ Restart Claude Desktop. You should see **Boyce Protocol** appear in the MCP tool
 
 ---
 
-## Step 2 — Ingest the Schema (The "Eyes" Calibration)
+## Step 2 — Ingest the Schema (Database Inspection)
 
 Paste this into Claude:
 
@@ -120,7 +120,7 @@ Watch for these tool calls in the response:
 }
 ```
 
-**The Eye opens:** `distinct_count` is **2**, not 3. NULL doesn't show up as a distinct value — which means any WHERE clause filtering on status will silently skip 300 rows. Boyce surfaces this immediately.
+**The Inspector reveals:** `distinct_count` is **2**, not 3. NULL doesn't show up as a distinct value — which means any WHERE clause filtering on status will silently skip 300 rows. Boyce surfaces this immediately.
 
 ---
 
@@ -134,7 +134,7 @@ Watch for these tool calls in the response:
 
 **What it returns:** All 200 cancelled users logged in within the **last 30 days**.
 
-**The Nervous System fires:** Boyce detects the active-trap and refuses to generate a naive DELETE.
+**Query Verification fires:** Boyce detects the active-trap and refuses to generate an unguarded DELETE.
 
 ---
 
@@ -189,4 +189,4 @@ Or let `verify_demo.py` handle it — it always tears down on exit unless `SKIP_
 | 200 active users destroyed | Last-login check flags recently-active "cancelled" users |
 | Production incident at 2am | Safe query with inactivity guard generated instead |
 
-The LLM didn't need to know the schema was dangerous. Boyce's Eyes looked first.
+The LLM didn't need to know the schema was dangerous. The Database Inspector looked first.

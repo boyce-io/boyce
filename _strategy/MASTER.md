@@ -131,7 +131,7 @@ and BI tool will have NL→SQL built in within 18 months.
 
 **We are the semantic protocol and safety layer for agentic database workflows.**
 
-> Don't let your Agents guess. Give them Eyes.
+> The semantic safety layer for agentic database workflows.
 
 ### Key Competitors (as of Feb 2026)
 | Competitor | What they do | Their advantage | Our advantage |
@@ -172,7 +172,7 @@ They need a guardrail layer. They'll adopt for safety. They won't build it thems
 Developer tool / SDK motion. Reached via open source adoption and technical content.
 
 **2. Data Platform Leads giving LLM access to company data.**
-Their nightmare is an agent that runs a naive query at 2am and silently returns wrong results.
+Their nightmare is an agent that runs a unguarded query at 2am and silently returns wrong results.
 Our demo IS their nightmare, solved. Reached via the Null Trap story.
 
 **3. dbt users who want safety on top of dbt MCP.**
@@ -378,10 +378,10 @@ over product accounts.
 *Launch-day posts (draft during pre-publish content sweep):*
 - [ ] The Null Trap observation: "AI agents generate syntactically correct SQL against
       incomplete data distributions. The result is wrong answers with false confidence."
-- [ ] The arrogant archetype: "GPT-5.4 bypassed my entire safety pipeline because
+- [ ] The bypass pattern: "GPT-5.4 bypassed my entire safety pipeline because
       writing raw SQL was one fewer API call. Here's what that taught me about
       behavioral design for agent tools."
-- [ ] The behavioral advertising insight: "MCP tool descriptions aren't docstrings —
+- [ ] The behavioral design insight: "MCP tool descriptions aren't docstrings —
       they're ads. LLMs respond to loss aversion, reciprocity, authority bias."
 
 *Ongoing cadence:* Not a content calendar. Post when there's something genuinely
@@ -416,7 +416,7 @@ bypass MCP tool safety pipelines when they can write raw SQL directly.
 *Why this matters beyond Boyce:*
 - Every MCP server author assumes models will use their tools as designed. Test data
   shows half the model market doesn't.
-- The "arrogant archetype" framing is not documented anywhere in the MCP ecosystem.
+- The "bypass pattern" framing is not documented anywhere in the MCP ecosystem.
 - The behavioral design response (make bypass path safe, don't fight bypasses) is a
   universal MCP design principle.
 - Positions Convergent Methods as the authority on agent-tool behavioral dynamics.
@@ -601,7 +601,7 @@ Cursor's model suppressed the warning in user-facing output.
 2. **Test 3 (simple aggregation):** GPT skipped ask_boyce entirely and wrote raw SQL
    directly to query_database: `SELECT rating, COUNT(*) FROM film GROUP BY rating`.
    Correct results, but bypassed the full safety pipeline. Same pattern as Cursor —
-   arrogant archetype takes path of least resistance when it can write SQL itself.
+   bypass pattern takes path of least resistance when it can write SQL itself.
 
 3. **Test 4 (NULL trap):** GPT picked the correct join (language_id, not
    original_language_id) but bypassed ask_boyce → no NULL trap warning fired.
@@ -616,17 +616,17 @@ Cursor's model suppressed the warning in user-facing output.
    each time got schema guidance fallback (no BOYCE_PROVIDER). Did NOT follow the
    "call ask_boyce again with suggested_filter" directive — abandoned the funnel
    and wrote raw SQL. The two-round-trip friction of schema guidance is too high
-   for the arrogant archetype. This is the strongest evidence that the schema
+   for the bypass pattern. This is the strongest evidence that the schema
    guidance fallback needs to return a ready-to-use filter, not instructions.
 
-6. **Tests 5 + 9 (advertising layer on bypass path):** data_reality, present_to_user,
+6. **Tests 5 + 9 (response guidance layer on bypass path):** data_reality, present_to_user,
    and next_step all fire correctly through query_database and validate_sql. The
    hooks reach GPT but don't convert it back to ask_boyce. GPT ignores recovery
    directives ("ask_boyce generates validated SQL") every time.
 
 **Codex summary:** GPT-5.4 uses Boyce as database bridge (ingest → get_schema →
 query_database). It reliably calls ingest_source and get_schema. It never stays in
-ask_boyce. The advertising layer's response-level hooks fire correctly but don't
+ask_boyce. The response guidance layer's response-level hooks fire correctly but don't
 change GPT's behavior. The commitment/consistency mechanism fails because GPT never
 commits to the funnel in the first place.
 
@@ -653,7 +653,7 @@ See `_strategy/plans/block-4-ecosystem-and-adoption.md` for detailed plan.
 - [ ] **Conference talk submissions:** "Behavioral Design for AI Agent Tool Surfaces"
       — targets dbt Coalesce, Data Council, AI Engineer Summit. Not a product pitch —
       a research presentation on empirical findings about how LLMs interact with tool
-      descriptions. The arrogant archetype data, behavioral hook conversion rates, the
+      descriptions. The bypass pattern data, behavioral hook conversion rates, the
       three-archetype framework.
 - [ ] **"SEO for Agents" research paper** — academic/rigorous version of the behavioral
       advertising framework. Positioned as a Convergent Methods brand asset.
@@ -706,7 +706,7 @@ Conference talk submitted to at least one venue.
 - Business definitions: `ingest_definition` MCP tool + `DefinitionStore`
 - Audit logging: `AuditLog` append-only JSONL, called from `server.py`
 - Demo kit: docker scenario, seed data, DEMO_SCRIPT.md
-- Lifecycle management: `boyce doctor` (5 check functions, JSON output, exit codes 0/1/2), `check_health` MCP tool, DSN persistence via `ConnectionStore` (`_local_context/connections.json`), `environment_suggestions` first-call-per-session advertising
+- Lifecycle management: `boyce doctor` (5 check functions, JSON output, exit codes 0/1/2), `check_health` MCP tool, DSN persistence via `ConnectionStore` (`_local_context/connections.json`), `environment_suggestions` first-call-per-session guidance
 - Non-interactive init: `boyce init --non-interactive --json --editors --db-url --skip-db --skip-sources --skip-existing` for agent invocation
 - Idempotent re-runs: `boyce init` shows "configured ✓" for already-configured editors, detects existing DB config
 - Agent-guided setup docs: `docs/QUICK_START.md` with platform-specific instructions
@@ -743,7 +743,7 @@ when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension
   correctly. Full funnel held across 5-query stress test. Mode A gap logged as Block 3.5.
 - **VS Code gate: PASSED (2026-03-21).** 9/9 tests pass — cleanest run of any platform.
   Two bugs found and fixed: `.vscode/mcp.json` needs `type: stdio` (init wizard updated),
-  quoted identifier regex patterns in advertising layer (FROM/JOIN/column extraction).
+  quoted identifier regex patterns in response guidance layer (FROM/JOIN/column extraction).
   Models observed: Claude Haiku 4.5, Grok (VS Code Auto rotates). Full ask_boyce funnel
   works — Mode C → Mode A two-round-trip path followed correctly. Commitment/consistency
   recovery (Test 6) succeeded where Cursor failed. Multi-step funnel held across 5 queries.
@@ -776,7 +776,7 @@ when organic demand justifies it. See `_strategy/plans/block-1b-vscode-extension
 | `boyce/tests/conftest.py` | Ensures real `mcp` package loaded before stub guards |
 | `boyce/tests/test_kernel_tools.py` | 37 tests for `get_schema`, `ask_boyce` Mode A/C, `_validate_structured_filter` |
 | `boyce/tests/test_validate_sql.py` | 15 tests for `validate_sql`, `_scan_null_risk`, freshness, drift |
-| `boyce/tests/test_advertising.py` | 34 tests for response advertising layer (next_step, present_to_user, data_reality, environment_suggestions) |
+| `boyce/tests/test_response_guidance.py` | 34 tests for response guidance layer (next_step, present_to_user, data_reality, environment_suggestions) |
 | `boyce/tests/test_init.py` | 46 tests for init wizard (detect, generate, merge, non-interactive, idempotent, JSON) |
 | `boyce/tests/test_connections.py` | 16 tests for ConnectionStore (save/load/touch/remove, DSN persistence) |
 | `boyce/tests/test_doctor.py` | 14 tests for doctor checks (editors, DB, snapshots, sources, server, JSON output) |

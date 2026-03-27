@@ -31,16 +31,16 @@ Boyce is an MCP server that gives AI agents structured database intelligence to 
 correct, safe SQL — deterministically.
 
 **The problem:** AI agents querying databases without context produce unreliable SQL. They
-guess join paths, miss NULL distributions, and silently return wrong results. A naive equality
+guess join paths, miss NULL distributions, and silently return wrong results. An unguarded equality
 filter on a column with 30% NULLs silently drops those rows — and the agent never knows.
 
 **What Boyce does:**
 
-- 🧠 **The Brain** — NL → StructuredFilter → deterministic SQL. Same inputs, same SQL,
+- **SQL Compiler** — NL → StructuredFilter → deterministic SQL. Same inputs, same SQL,
   byte-for-byte, every time. Zero LLM in the SQL compiler.
-- 👁 **The Eyes** — Live Postgres/Redshift adapter. Real schema, real NULL distributions
+- **Database Inspector** — Live Postgres/Redshift adapter. Real schema, real NULL distributions
   before writing a single filter.
-- 🛡 **The Nervous System** — EXPLAIN pre-flight on every query. Bad SQL caught at planning
+- **Query Verification** — EXPLAIN pre-flight on every query. Bad SQL caught at planning
   time, not at 2am.
 
 **For MCP hosts (Claude Desktop, Cursor, Claude Code, etc.):** No API key needed. The host
@@ -91,7 +91,7 @@ Tags: mcp, sql, database, postgresql, redshift, duckdb, bigquery, dbt, semantic-
 
 ### Tool count
 ```
-7
+8
 ```
 
 ### Language / Runtime

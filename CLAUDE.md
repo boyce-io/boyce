@@ -30,6 +30,13 @@ This project uses the Convergent Methods ops layer protocol. The canonical proto
 
 On session boot, read `ROADMAP.md` and `SESSION_LOG.md` at the repo root before doing any work. These files govern phase sequencing and session continuity.
 
+**Upward propagation paths:** When a propagation event occurs (phase
+completion, external publish, blocking status change, HITL gate
+reached/cleared — see CM root CLAUDE.md for full list), update these
+CEO-level docs before the session ends:
+- `/Users/willwright/ConvergentMethods/MASTER.md` — this project's workstream entry
+- `/Users/willwright/ConvergentMethods/OPUS_BRIEF.md` — this project's portfolio brief entry
+
 **Status bar:** Every response footer must include, alongside existing lines (docs updated, persistence receipts, timestamp):
 ```
 Project: Boyce | Phase: [current phase from ROADMAP.md]
@@ -94,16 +101,16 @@ Boyce is a privacy-first SQL compiler exposed as an MCP server. The LLM is only 
 ### The Three Layers
 
 ```
-👁️  Eyes          PostgresAdapter     — live schema introspection, read-only queries,
-                                         EXPLAIN pre-flight validation
+Database Inspector  PostgresAdapter     — live schema introspection, read-only queries,
+                                          EXPLAIN pre-flight validation
 
-🧠  Brain          QueryPlanner        — NL → StructuredFilter via LiteLLM
-                   SemanticGraph       — Dijkstra join-path resolution (NetworkX)
-                   kernel.process_request() → deterministic SQL  ← ZERO LLM HERE
+SQL Compiler        QueryPlanner        — NL → StructuredFilter via LiteLLM
+                    SemanticGraph       — Dijkstra join-path resolution (NetworkX)
+                    kernel.process_request() → deterministic SQL  ← ZERO LLM HERE
 
-🛡️  Nervous System safety.py          — Redshift 1.0 lint + NULLIF cast rewrites
-                   _null_trap_check()  — profiles equality-filtered columns for NULL hazards
-                   EXPLAIN pre-flight  — catches invalid SQL before it reaches the DB
+Query Verification  safety.py           — Redshift 1.0 lint + NULLIF cast rewrites
+                    _null_trap_check()  — profiles equality-filtered columns for NULL hazards
+                    EXPLAIN pre-flight  — catches invalid SQL before it reaches the DB
 ```
 
 ### Request Flow (`ask_boyce`)
@@ -127,7 +134,7 @@ SQL string
     │
     ▼  Stage 4: lint_redshift_compat(sql)            [compat_risks list]
     │
-    ▼  Stage 5: _build_advertising_layer()          [response marketing]
+    ▼  Stage 5: _build_response_guidance()            [response guidance]
     │            next_step, present_to_user, data_reality
     │
     ▼  JSON response  {next_step, present_to_user?, data_reality?,
@@ -135,13 +142,13 @@ SQL string
                        entities_resolved, null_trap_warnings}
 ```
 
-### Response Advertising Layer
+### Response Guidance Layer
 
-Every successful tool response includes behavioral fields ABOVE the data payload
-via `_build_advertising_layer()`. See `../../MASTER.md` "Behavioral Design
-Framework" for the paradigm. This section covers Boyce-specific implementation.
+Every successful tool response includes guidance fields ABOVE the data payload
+via `_build_response_guidance()`. See `../../MASTER.md` for the design framework.
+This section covers Boyce-specific implementation.
 
-**Response schema (advertising fields precede primary payload):**
+**Response schema (guidance fields precede primary payload):**
 
 ```python
 {
@@ -217,7 +224,7 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 | Concern | File |
 |---|---|
 | **MCP entry point** (8 tools) | `server.py` |
-| **Response advertising layer** | `server.py` — `_build_advertising_layer()` (next_step, present_to_user, data_reality, environment_suggestions) |
+| **Response guidance layer** | `server.py` — `_build_response_guidance()` (next_step, present_to_user, data_reality, environment_suggestions) |
 | **DSN persistence** | `connections.py` — `ConnectionStore` (`_local_context/connections.json`) |
 | **Environment diagnostics** | `doctor.py` — `run_doctor()`, 6 check functions (incl. version), `boyce doctor` CLI |
 | **Version lifecycle** | `version_check.py` — PyPI check, 24h disk cache, install detection, `boyce update`, stale-process detection |
@@ -260,8 +267,8 @@ Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host 
 | `tests/test_definitions.py` | DefinitionStore: upsert, overwrite, isolation, context string |
 | `tests/test_parsers.py` | All 10 parsers: detect, parse, protocol compliance, registry |
 | `tests/test_discovery.py` | Auto-discovery: detect, resolve, ingest for all parser types (27 tests) |
-| `tests/test_init.py` | Init wizard: detect_hosts, generate_server_entry, merge_config |
-| `tests/test_advertising.py` | Response advertising layer: column extraction, bare column resolution, next_step/present_to_user/data_reality/environment_suggestions, integration (34 tests) |
+| `tests/test_init.py` | Init wizard: detect_hosts, generate_server_entry, merge_config, _merge_toml_config (Codex/TOML) — 56 tests |
+| `tests/test_response_guidance.py` | Response guidance layer: column extraction, bare column resolution, next_step/present_to_user/data_reality/environment_suggestions, integration (34 tests) |
 | `tests/test_connections.py` | ConnectionStore: save/load/touch/remove/list_all, DSN persistence, edge cases (16 tests) |
 | `tests/test_doctor.py` | Doctor checks: version, editors, database, snapshots, sources, server, orchestrator, JSON output (20 tests) |
 | `tests/test_version_check.py` | Version lifecycle: PyPI fetch, disk cache, classify update, stale-process, install detection, cooldown, nudge filtering, run_update (37 tests) |

@@ -1,6 +1,6 @@
 # Boyce: Semantic Protocol & Safety Layer for Agentic Database Workflows
 
-> **Don't let your agents guess. Give them Eyes.**
+> **The semantic safety layer for agentic database workflows.**
 > Boyce connects LLMs to live database context with built-in safety rails.
 
 Named for [Raymond F. Boyce](https://en.wikipedia.org/wiki/Raymond_F._Boyce), co-inventor of SQL (1974) and co-author of Boyce-Codd Normal Form (BCNF).
@@ -9,9 +9,9 @@ AI agents querying databases without proper context generate unreliable SQL — 
 
 | Layer | What it does |
 |---|---|
-| 🧠 **The Brain** | `ask_boyce` — NL → StructuredFilter → deterministic SQL. Zero LLM in the SQL builder. Same inputs, same SQL, byte-for-byte, every time. |
-| 👁️ **The Eyes** | `query_database` / `profile_data` — Live Postgres/Redshift adapters let your agent see real schema and real data distributions before writing a single filter. |
-| 🛡️ **The Nervous System** | Pre-flight `EXPLAIN` loops on every generated query. Bad SQL is caught at planning time, not at 2am in your on-call rotation. |
+| **SQL Compiler** | `ask_boyce` — NL → StructuredFilter → deterministic SQL. Zero LLM in the SQL builder. Same inputs, same SQL, byte-for-byte, every time. |
+| **Database Inspector** | `query_database` / `profile_data` — Live Postgres/Redshift adapters let your agent see real schema and real data distributions before writing a single filter. |
+| **Query Verification** | Pre-flight `EXPLAIN` loops on every generated query. Bad SQL is caught at planning time, not at 2am in your on-call rotation. |
 
 **Why does this matter?** → [The Null Trap: Your AI Agent's SQL Is Correct. The Answer Is Still Wrong.](https://convergentmethods.com/boyce/null-trap/)
 
@@ -194,7 +194,7 @@ SemanticSnapshot (JSON)
            SQLBuilder (dialect-aware)
                    │
                    ▼
-           EXPLAIN pre-flight                ← 🛡️ Nervous System
+           EXPLAIN pre-flight                ← Query Verification
            (PostgresAdapter)
                    │
                    ▼
@@ -293,7 +293,6 @@ boyce/                          ← PRIMARY — headless FastMCP server + pip pa
     ├── test_parsers.py         ← Parser tests (all 10 parsers)
     ├── test_scan.py            ← Scan CLI tests
     └── live_fire/              ← Docker Compose integration tests
-_management_documents/          ← Architecture docs and decision records
 ```
 
 ---

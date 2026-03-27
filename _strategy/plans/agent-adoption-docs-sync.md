@@ -2,7 +2,7 @@
 **Status:** Ready for execution
 **Created:** 2026-03-19
 **Model:** Sonnet 4.6 · high
-**Depends on:** Response advertising layer (COMPLETE), behavioral design framework in `../../MASTER.md` (COMPLETE)
+**Depends on:** Response response guidance layer (COMPLETE), behavioral design framework in `../../MASTER.md` (COMPLETE)
 
 ## Goal
 
@@ -27,9 +27,9 @@ describe the pre-rewrite Boyce:
 
 - `query_database` is listed as "read-only SELECT execution" — no mention
   of NULL risk scan or EXPLAIN pre-flight
-- No mention of the response advertising layer (`next_step`, `present_to_user`,
+- No mention of the response response guidance layer (`next_step`, `present_to_user`,
   `data_reality`)
-- Tool descriptions in docs don't match the two-register ad structure now
+- Tool descriptions in docs don't match the two-register guidance structure now
   in server.py
 - No behavioral hooks in the docs themselves (loss aversion, authority framing)
 
@@ -60,10 +60,10 @@ This is the FIRST surface an agent reads. It must:
 
 This is the deep reference. It must:
 
-- Include the full response schema for every tool, including the advertising
+- Include the full response schema for every tool, including the guidance
   fields (`next_step`, `present_to_user`, `data_reality`)
 - Document the `next_step` patterns per tool (see table in
-  `products/Boyce/CLAUDE.md` under "Response Advertising Layer")
+  `products/Boyce/CLAUDE.md` under "Response Guidance Layer")
 - Document `data_reality` behavior: when it fires, what it contains, why
 - Document `present_to_user` behavior: when it fires, loss-aversion framing
 - Update all tool parameter docs to match current server.py signatures
@@ -72,7 +72,7 @@ This is the deep reference. It must:
   EXPLAIN pre-flight, dialect compatibility"
 
 **Source of truth:** `boyce/src/boyce/server.py` — every tool's docstring,
-`_build_advertising_layer()`, and the per-tool next_step map.
+`_build_response_guidance()`, and the per-tool next_step map.
 
 ### 3. `index.html` — Product page
 
@@ -80,7 +80,7 @@ Smaller updates:
 - MCP Tools table: `query_database` row already updated. Verify all 7 rows
   match current descriptions.
 - Consider adding a brief "Response Intelligence" section or bullet under
-  "What Boyce Does" that mentions the advertising layer in human terms:
+  "What Boyce Does" that mentions the response guidance layer in human terms:
   "Every query response includes contextual safety findings and explicit
   next-step guidance — your agent always knows what Boyce found and what
   to do next."
@@ -109,9 +109,9 @@ These are binding. Follow them exactly:
 1. Read `../../MASTER.md` Cross-Cutting Rules → "Behavioral Design Framework"
 2. Read `boyce/src/boyce/server.py`:
    - Each `@mcp.tool()` function's docstring (current descriptions)
-   - `_build_advertising_layer()` (response schema + next_step map)
+   - `_build_response_guidance()` (response schema + next_step map)
    - `FastMCP` constructor `instructions=` parameter (preamble text)
-3. Read `products/Boyce/CLAUDE.md` → "Response Advertising Layer" section
+3. Read `products/Boyce/CLAUDE.md` → "Response Guidance Layer" section
 4. Rewrite `llms.txt` (short version first)
 5. Rewrite `llms-full.txt` (complete reference)
 6. Update `index.html` MCP Tools table + any needed additions
@@ -125,7 +125,7 @@ These are binding. Follow them exactly:
 - [ ] llms.txt uses loss-aversion framing in opening
 - [ ] llms.txt mentions `next_step`, `present_to_user`, `data_reality`
 - [ ] llms.txt `query_database` description includes safety pre-flight
-- [ ] llms-full.txt documents full response schema with advertising fields
+- [ ] llms-full.txt documents full response schema with guidance fields
 - [ ] llms-full.txt includes per-tool next_step patterns
 - [ ] llms-full.txt tool parameters match server.py signatures
 - [ ] index.html MCP Tools table matches current descriptions
