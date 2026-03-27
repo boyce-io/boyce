@@ -46,6 +46,7 @@ _CLI_EDITOR_NAMES = {
     "jetbrains": "JetBrains / DataGrip",
     "windsurf": "Windsurf",
     "claude_desktop": "Claude Desktop",
+    "codex": "Codex",
 }
 
 
@@ -131,6 +132,7 @@ class MCPHost:
     post_config_note: Optional[str] = None
     entry_extra: Optional[Dict[str, str]] = None
     restart_instruction: Optional[str] = None
+    is_toml: bool = False
 
 
 def _claude_desktop_path() -> Path:
@@ -241,6 +243,15 @@ def _host_specs() -> List[Dict]:
             "installed_check": _is_windsurf_installed,
             "restart_instruction": "Restart Windsurf",
         },
+        {
+            "name": "Codex",
+            "path": Path.home() / ".codex" / "config.toml",
+            "project_level": False,
+            "servers_key": "mcp_servers",
+            "installed_check": lambda: (Path.home() / ".codex").is_dir() or bool(shutil.which("codex")),
+            "restart_instruction": "Restart Codex",
+            "is_toml": True,
+        },
     ]
 
 
@@ -255,6 +266,8 @@ def detect_hosts(specs: Optional[List[Dict]] = None) -> List[MCPHost]:
         installed_check = spec.get("installed_check")
         detection_hint: Optional[Path] = spec.get("detection_hint")
 
+        is_toml: bool = spec.get("is_toml", False)
+
         exists = (
             path.exists()
             or (installed_check is not None and bool(installed_check()))
@@ -263,11 +276,23 @@ def detect_hosts(specs: Optional[List[Dict]] = None) -> List[MCPHost]:
         has_boyce = False
 
         if path.exists():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                has_boyce = "boyce" in data.get(servers_key, {})
-            except (json.JSONDecodeError, OSError):
-                pass
+            if is_toml:
+                try:
+                    try:
+                        import tomllib  # noqa: PLC0415
+                    except ImportError:
+                        tomllib = None  # type: ignore[assignment]
+                    if tomllib is not None:
+                        data = tomllib.load(open(path, "rb"))
+                        has_boyce = "boyce" in data.get(servers_key, {})
+                except Exception:
+                    pass
+            else:
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    has_boyce = "boyce" in data.get(servers_key, {})
+                except (json.JSONDecodeError, OSError):
+                    pass
 
         hosts.append(MCPHost(
             name=spec["name"],
@@ -279,6 +304,7 @@ def detect_hosts(specs: Optional[List[Dict]] = None) -> List[MCPHost]:
             post_config_note=spec.get("post_config_note"),
             entry_extra=spec.get("entry_extra"),
             restart_instruction=spec.get("restart_instruction"),
+            is_toml=is_toml,
         ))
 
     return hosts
@@ -400,6 +426,95 @@ def merge_config(
 
     existing[servers_key]["boyce"] = server_entry
     config_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
+
+def _merge_toml_config(config_path: Path, server_entry: dict) -> None:
+    """
+    Merge boyce server entry into a TOML config file (Codex format).
+
+    Reads existing TOML (if present), merges/overwrites the [mcp_servers.boyce]
+    section, and writes back using string formatting — no TOML writing dep required.
+
+    The Codex config structure is:
+
+        [mcp_servers.boyce]
+        command = "/path/to/boyce"
+        args = []
+        enabled = true
+
+        [mcp_servers.boyce.env]
+        BOYCE_DB_URL = "postgresql://..."
+    """
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read existing TOML data (preserve other mcp_servers entries)
+    existing_data: dict = {}
+    if config_path.exists():
+        try:
+            try:
+                import tomllib  # noqa: PLC0415
+            except ImportError:
+                tomllib = None  # type: ignore[assignment]
+            if tomllib is not None:
+                existing_data = tomllib.load(open(config_path, "rb"))
+        except Exception:
+            existing_data = {}
+
+    # Merge: update mcp_servers.boyce
+    mcp_servers = existing_data.get("mcp_servers", {})
+    boyce_entry: dict = {
+        "command": server_entry.get("command", "boyce"),
+        "args": server_entry.get("args", []),
+        "enabled": True,
+    }
+    env = server_entry.get("env", {})
+    if env:
+        boyce_entry["env"] = env
+
+    mcp_servers["boyce"] = boyce_entry
+    existing_data["mcp_servers"] = mcp_servers
+
+    # Write back as TOML using string formatting
+    toml_lines: List[str] = []
+
+    # Write non-mcp_servers top-level keys first (preserve unknown top-level config)
+    for key, val in existing_data.items():
+        if key == "mcp_servers":
+            continue
+        if isinstance(val, bool):
+            toml_lines.append(f"{key} = {'true' if val else 'false'}")
+        elif isinstance(val, str):
+            toml_lines.append(f'{key} = "{val}"')
+        elif isinstance(val, int):
+            toml_lines.append(f"{key} = {val}")
+        # Skip complex types we don't understand — safe to omit
+
+    # Write each mcp server entry
+    for server_name, sdata in existing_data["mcp_servers"].items():
+        if toml_lines:
+            toml_lines.append("")
+        toml_lines.append(f"[mcp_servers.{server_name}]")
+        cmd = sdata.get("command", "boyce")
+        toml_lines.append(f'command = "{cmd}"')
+        args = sdata.get("args", [])
+        toml_lines.append(f"args = {_toml_format_list(args)}")
+        enabled = sdata.get("enabled", True)
+        toml_lines.append(f"enabled = {'true' if enabled else 'false'}")
+        senv = sdata.get("env", {})
+        if senv:
+            toml_lines.append(f"\n[mcp_servers.{server_name}.env]")
+            for k, v in senv.items():
+                toml_lines.append(f'{k} = "{v}"')
+
+    config_path.write_text("\n".join(toml_lines) + "\n", encoding="utf-8")
+
+
+def _toml_format_list(lst: list) -> str:
+    """Format a Python list as a TOML inline array."""
+    if not lst:
+        return "[]"
+    items = ", ".join(f'"{item}"' if isinstance(item, str) else str(item) for item in lst)
+    return f"[{items}]"
 
 
 # ---------------------------------------------------------------------------
@@ -898,7 +1013,10 @@ def _build_and_write_configs(
     for host in editors:
         try:
             entry = {**server_entry, **host.entry_extra} if host.entry_extra else server_entry
-            merge_config(host.config_path, entry, servers_key=host.servers_key)
+            if host.is_toml:
+                _merge_toml_config(host.config_path, entry)
+            else:
+                merge_config(host.config_path, entry, servers_key=host.servers_key)
             print(f"  ✓ {host.name}  →  {host.config_path}")
             if host.post_config_note:
                 print(host.post_config_note)
@@ -1110,7 +1228,10 @@ def _run_wizard_noninteractive(
         for host in selected:
             try:
                 entry = {**server_entry, **(host.entry_extra or {})} if host.entry_extra else server_entry
-                merge_config(host.config_path, entry, servers_key=host.servers_key)
+                if host.is_toml:
+                    _merge_toml_config(host.config_path, entry)
+                else:
+                    merge_config(host.config_path, entry, servers_key=host.servers_key)
                 configured.append(host)
             except Exception as exc:
                 result["suggestions"].append(f"Failed to configure {host.name}: {exc}")

@@ -190,12 +190,12 @@ Rules:
             for field in entity_info["fields"]:
                 schema_text += f"  - {field['name']} ({field['type']}, {field['data_type']})\n"
 
-        # Brain-as-context: inject semantic definitions/DDL (RAG, no SQL generation)
+        # Planner context: inject semantic definitions/DDL (RAG, no SQL generation)
         if self.brain is not None and hasattr(self.brain, "retrieve_context"):
             context = self.brain.retrieve_context(query, n_results=5)
             if context:
                 system_prompt += (
-                    "\n\nAdditional Schema Context from Brain:\n"
+                    "\n\nAdditional Schema Context:\n"
                     f"{context}\n\nUse this to map the user's intent to the Semantic Graph."
                 )
 

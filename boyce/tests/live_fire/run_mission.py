@@ -272,7 +272,7 @@ async def run_mission() -> None:
         print(f"        Fields in cache   : {len(graph.field_cache)}")
 
         # ------------------------------------------------------------------
-        # Step 5: Plan → SQL (Brain + Kernel)
+        # Step 5: Plan → SQL (Compiler + Kernel)
         # ------------------------------------------------------------------
         print(f"\n[5/6] Running pipeline for: {_NL_QUERY!r}")
         print("      Stage 1 — QueryPlanner (LLM) ...")
@@ -299,7 +299,7 @@ async def run_mission() -> None:
         print(f"      ✓ SQL generated ({len(sql)} chars)")
 
         # ------------------------------------------------------------------
-        # Stage 3: EXPLAIN pre-flight (Eyes)
+        # Stage 3: EXPLAIN pre-flight (Inspector)
         # ------------------------------------------------------------------
         print("      Stage 3 — EXPLAIN pre-flight (PostgresAdapter) ...")
 

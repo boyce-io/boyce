@@ -181,6 +181,15 @@ def define_tests() -> None:
         label="boyce init --non-interactive --skip-existing --json",
         timeout=10)
 
+    # --- boyce init --editors codex: codex is a valid editor name ---
+    # Exit 0 if ~/.codex/ exists on this machine, 1 if no editors detected/configured.
+    # Either way, "codex" must be accepted as a valid --editors value (not exit 1 as unknown).
+    run([_BOYCE, "init", "--non-interactive", "--editors", "codex",
+         "--skip-db", "--skip-sources", "--json"],
+        expected_exit={0, 1},
+        label="boyce init --editors codex --json (valid editor name)",
+        timeout=10)
+
     # --- legacy boyce-init entry point (backward compat) ---
     run([_BOYCE_INIT],
         expected_exit={0, 1},

@@ -799,7 +799,7 @@ def _build_schema_guidance(
     }
     if suggested:
         result["ready_filter"] = suggested
-    ad = _build_advertising_layer(
+    ad = _build_response_guidance(
         sql=None, snapshot_name=snapshot_name, tool_name="ask_boyce", mode="C",
     )
     result = {**ad, **result}
@@ -1188,7 +1188,7 @@ async def ingest_source(
         if snapshot.snapshot_id not in _graph.snapshots:
             _graph.add_snapshot(snapshot)
 
-        ad = _build_advertising_layer(
+        ad = _build_response_guidance(
             sql=None, snapshot_name=snapshot_name, tool_name="ingest_source",
         )
         return json.dumps({
@@ -1238,7 +1238,7 @@ async def ingest_source(
     if snapshot.snapshot_id not in _graph.snapshots:
         _graph.add_snapshot(snapshot)
 
-    ad = _build_advertising_layer(
+    ad = _build_response_guidance(
         sql=None, snapshot_name=snapshot_name, tool_name="ingest_source",
     )
     return json.dumps({
@@ -1314,7 +1314,7 @@ def ingest_definition(
     except Exception as e:
         return json.dumps({"error": {"code": -32603, "message": f"Failed to store definition: {e}"}})
 
-    ad = _build_advertising_layer(
+    ad = _build_response_guidance(
         sql=None, snapshot_name=snapshot_name, tool_name="ingest_definition",
     )
     return json.dumps({
@@ -1417,7 +1417,7 @@ def get_schema(
     definitions_raw = _definitions.load_all(snapshot_name)
     definitions_out = list(definitions_raw.values()) if definitions_raw else []
 
-    ad = _build_advertising_layer(
+    ad = _build_response_guidance(
         sql=None, snapshot_name=snapshot_name, tool_name="get_schema",
     )
     fields_count = sum(len(e["fields"]) for e in entities_out)
@@ -1749,7 +1749,7 @@ async def ask_boyce(
             )
             return json.dumps({"error": {"code": -32603, "message": str(e)}})
 
-        ad = _build_advertising_layer(
+        ad = _build_response_guidance(
             sql=payload.get("sql"),
             snapshot_name=snapshot_name,
             tool_name="ask_boyce",
@@ -1807,7 +1807,7 @@ async def ask_boyce(
         )
         return json.dumps({"error": {"code": -32603, "message": str(e)}})
 
-    ad = _build_advertising_layer(
+    ad = _build_response_guidance(
         sql=payload.get("sql"),
         snapshot_name=snapshot_name,
         tool_name="ask_boyce",
@@ -1825,7 +1825,7 @@ async def ask_boyce(
 
 
 # ---------------------------------------------------------------------------
-# Response advertising layer
+# Response guidance layer
 # ---------------------------------------------------------------------------
 
 # SQL clause patterns for extracting referenced columns
@@ -2018,7 +2018,7 @@ def _check_environment_suggestions() -> List[str]:
     return suggestions[:3]  # Noise fatigue protection
 
 
-def _build_advertising_layer(
+def _build_response_guidance(
     sql: Optional[str],
     snapshot_name: str,
     tool_name: str,
@@ -2029,10 +2029,10 @@ def _build_advertising_layer(
     null_trap_warnings: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
-    Build the response advertising layer: present_to_user, data_reality, next_step.
+    Build response guidance: present_to_user, data_reality, next_step.
 
     Every successful tool response merges this dict ABOVE its primary payload
-    so the consuming model reads the advertising fields first.
+    so the consuming model reads the guidance fields first.
     """
     present_to_user: Optional[str] = None
     data_reality: Optional[Dict[str, Any]] = None
@@ -2460,7 +2460,7 @@ async def validate_sql(
     # Stage 3: Lightweight NULL risk scan
     null_risk_columns = _scan_null_risk(sql, snapshot_name)
 
-    ad = _build_advertising_layer(
+    ad = _build_response_guidance(
         sql=sql,
         snapshot_name=snapshot_name,
         tool_name="validate_sql",
@@ -2637,7 +2637,7 @@ async def query_database(
     # Safety pre-flight: EXPLAIN validation
     validation = await _preflight_check(sql)
     if validation["status"] == "invalid":
-        ad = _build_advertising_layer(
+        ad = _build_response_guidance(
             sql=sql, snapshot_name=snapshot_name, tool_name="query_database",
             validation=validation, null_risk=null_risk_columns or None,
             null_trap_warnings=live_null_warnings or None,
@@ -2665,7 +2665,7 @@ async def query_database(
         logger.exception("query_database: database error")
         return json.dumps({"error": {"code": -32603, "message": f"Database error: {e}"}})
 
-    ad = _build_advertising_layer(
+    ad = _build_response_guidance(
         sql=sql, snapshot_name=snapshot_name, tool_name="query_database",
         validation=validation, null_risk=null_risk_columns or None,
         null_trap_warnings=live_null_warnings or None,
@@ -2764,7 +2764,7 @@ async def profile_data(table: str, column: str) -> str:
         logger.exception("profile_data: database error")
         return json.dumps({"error": {"code": -32603, "message": f"Database error: {e}"}})
 
-    ad = _build_advertising_layer(
+    ad = _build_response_guidance(
         sql=None, snapshot_name="default", tool_name="profile_data",
     )
     return json.dumps({**ad, **result})
@@ -2821,7 +2821,7 @@ async def check_health(snapshot_name: str = "default") -> str:
     else:
         status = "ok"
 
-    # Build advertising layer
+    # Build response guidance
     ad: Dict[str, Any] = {}
     if suggestions:
         ad["next_step"] = f"Fix the most critical issue: {suggestions[0]}"

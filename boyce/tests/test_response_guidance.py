@@ -1,10 +1,10 @@
 """
-Tests for the response advertising layer.
+Tests for the response guidance layer.
 
 Covers:
     _extract_referenced_columns  — regex column extraction (qualified + bare)
     _extract_from_tables         — FROM/JOIN table extraction
-    _build_advertising_layer     — next_step, present_to_user, data_reality
+    _build_response_guidance     — next_step, present_to_user, data_reality
     Integration: verify next_step present in tool responses
 """
 
@@ -35,7 +35,7 @@ import boyce.server as srv
 # ---------------------------------------------------------------------------
 
 def _make_snapshot_with_nullable() -> SemanticSnapshot:
-    """Snapshot with a nullable 'status' field on orders for advertising tests."""
+    """Snapshot with a nullable 'status' field on orders for response guidance tests."""
     base = {
         "snapshot_id": "placeholder",
         "source_system": "test",
@@ -284,12 +284,12 @@ class TestExtractReferencedColumns:
 
 
 # ---------------------------------------------------------------------------
-# _build_advertising_layer tests
+# _build_response_guidance tests
 # ---------------------------------------------------------------------------
 
 class TestBuildAdvertisingLayer:
     def test_ingest_source_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="ingest_source",
         )
         assert "next_step" in ad
@@ -297,21 +297,21 @@ class TestBuildAdvertisingLayer:
         assert "ask_boyce" in ad["next_step"]
 
     def test_ingest_definition_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="ingest_definition",
         )
         assert "next_step" in ad
         assert "ask_boyce" in ad["next_step"]
 
     def test_get_schema_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="get_schema",
         )
         assert "next_step" in ad
         assert "StructuredFilter" in ad["next_step"]
 
     def test_ask_boyce_mode_a_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT rating FROM films",
             snapshot_name="default",
             tool_name="ask_boyce",
@@ -320,13 +320,13 @@ class TestBuildAdvertisingLayer:
         assert "query_database" in ad["next_step"]
 
     def test_ask_boyce_mode_c_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="ask_boyce", mode="C",
         )
         assert "structured_filter" in ad["next_step"]
 
     def test_query_database_clean_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT title FROM films",
             snapshot_name="default",
             tool_name="query_database",
@@ -336,7 +336,7 @@ class TestBuildAdvertisingLayer:
         assert "present_to_user" not in ad  # Clean query — no noise
 
     def test_query_database_null_risk_present_to_user(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT * FROM films WHERE rating = 'PG'",
             snapshot_name="default",
             tool_name="query_database",
@@ -347,7 +347,7 @@ class TestBuildAdvertisingLayer:
         assert "ask_boyce" in ad["next_step"]
 
     def test_validate_sql_clean_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT COUNT(*) FROM orders",
             snapshot_name="default",
             tool_name="validate_sql",
@@ -357,7 +357,7 @@ class TestBuildAdvertisingLayer:
         assert "present_to_user" not in ad
 
     def test_validate_sql_with_issues_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT * FROM orders WHERE status = 'active'",
             snapshot_name="default",
             tool_name="validate_sql",
@@ -367,7 +367,7 @@ class TestBuildAdvertisingLayer:
         assert "present_to_user" in ad
 
     def test_profile_data_next_step(self, ad_server):
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="profile_data",
         )
         assert "next_step" in ad
@@ -375,7 +375,7 @@ class TestBuildAdvertisingLayer:
 
     def test_data_reality_nullable_group_by(self, ad_server):
         """Bare 'rating' in GROUP BY on films → data_reality should fire."""
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT rating, COUNT(*) FROM films GROUP BY rating",
             snapshot_name="default",
             tool_name="query_database",
@@ -390,7 +390,7 @@ class TestBuildAdvertisingLayer:
 
     def test_data_reality_nullable_where(self, ad_server):
         """Bare 'status' in WHERE on orders → data_reality should fire."""
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT * FROM orders WHERE status = 'active'",
             snapshot_name="default",
             tool_name="query_database",
@@ -404,7 +404,7 @@ class TestBuildAdvertisingLayer:
 
     def test_data_reality_absent_on_non_nullable(self, ad_server):
         """Non-nullable column in simple WHERE → no data_reality."""
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT * FROM films WHERE title = 'test'",
             snapshot_name="default",
             tool_name="query_database",
@@ -415,7 +415,7 @@ class TestBuildAdvertisingLayer:
 
     def test_present_to_user_absent_on_clean_query(self, ad_server):
         """No null risk, no EXPLAIN failure, no compat issues → no present_to_user."""
-        ad = srv._build_advertising_layer(
+        ad = srv._build_response_guidance(
             sql="SELECT title FROM films",
             snapshot_name="default",
             tool_name="query_database",
@@ -476,13 +476,13 @@ class TestNextStepInToolResponses:
 
 
 class TestEnvironmentSuggestions:
-    """Test the environment_suggestions field in the advertising layer."""
+    """Test the environment_suggestions field in the response guidance layer."""
 
     def test_first_call_may_include_suggestions(self, ad_server):
         """First call per session may include environment_suggestions."""
         # Reset the flag
         srv._environment_checked = False
-        result = srv._build_advertising_layer(
+        result = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="get_schema",
         )
         # May or may not have suggestions depending on environment state
@@ -491,7 +491,7 @@ class TestEnvironmentSuggestions:
     def test_second_call_never_includes_suggestions(self, ad_server):
         """After first call, environment_suggestions should not appear."""
         srv._environment_checked = True
-        result = srv._build_advertising_layer(
+        result = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="get_schema",
         )
         assert "environment_suggestions" not in result
@@ -499,7 +499,7 @@ class TestEnvironmentSuggestions:
     def test_suggestions_max_three(self, ad_server):
         """environment_suggestions should never exceed 3 items."""
         srv._environment_checked = False
-        result = srv._build_advertising_layer(
+        result = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="get_schema",
         )
         if "environment_suggestions" in result:
@@ -508,10 +508,10 @@ class TestEnvironmentSuggestions:
     def test_flag_resets_correctly(self, ad_server):
         """_environment_checked flag prevents duplicate suggestions."""
         srv._environment_checked = False
-        result1 = srv._build_advertising_layer(
+        result1 = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="ingest_source",
         )
-        result2 = srv._build_advertising_layer(
+        result2 = srv._build_response_guidance(
             sql=None, snapshot_name="default", tool_name="get_schema",
         )
         # Second call should never have environment_suggestions

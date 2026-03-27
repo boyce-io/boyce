@@ -16,6 +16,7 @@ from boyce.init_wizard import (
     MCPHost,
     _CLI_EDITOR_NAMES,
     _get_existing_db_url,
+    _merge_toml_config,
     _redact_dsn,
     _resolve_boyce_command,
     _run_wizard_noninteractive,
@@ -666,3 +667,193 @@ def test_run_wizard_parses_comma_editors(tmp_path, capsys):
     result = json.loads(capsys.readouterr().out)
     assert "Claude Code" in result["editors_configured"]
     assert "Cursor" in result["editors_configured"]
+
+
+# ---------------------------------------------------------------------------
+# Codex — TOML detection and config merge
+# ---------------------------------------------------------------------------
+
+
+def _make_specs_with_codex(tmp_path: Path) -> list:
+    """Host spec list including Codex (TOML-based)."""
+    return [
+        {
+            "name": "Codex",
+            "path": tmp_path / ".codex" / "config.toml",
+            "project_level": False,
+            "servers_key": "mcp_servers",
+            "installed_check": lambda: (tmp_path / ".codex").is_dir(),
+            "restart_instruction": "Restart Codex",
+            "is_toml": True,
+        },
+    ]
+
+
+def test_detect_hosts_codex_detected_via_dir(tmp_path):
+    """Codex detected when ~/.codex/ directory exists."""
+    specs = _make_specs_with_codex(tmp_path)
+    (tmp_path / ".codex").mkdir()
+
+    hosts = detect_hosts(specs)
+    codex = next(h for h in hosts if h.name == "Codex")
+    assert codex.exists is True
+    assert codex.has_boyce is False
+
+
+def test_detect_hosts_codex_not_detected_without_dir(tmp_path):
+    """Codex not detected when ~/.codex/ directory does not exist."""
+    specs = _make_specs_with_codex(tmp_path)
+
+    hosts = detect_hosts(specs)
+    codex = next(h for h in hosts if h.name == "Codex")
+    assert codex.exists is False
+
+
+def test_detect_hosts_codex_reads_toml(tmp_path):
+    """Codex host checks TOML for existing boyce entry."""
+    import sys
+    if sys.version_info < (3, 11):
+        pytest.skip("tomllib requires Python 3.11+")
+
+    specs = _make_specs_with_codex(tmp_path)
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    config_path = codex_dir / "config.toml"
+    config_path.write_text(
+        '[mcp_servers.boyce]\ncommand = "boyce"\nargs = []\nenabled = true\n',
+        encoding="utf-8",
+    )
+
+    hosts = detect_hosts(specs)
+    codex = next(h for h in hosts if h.name == "Codex")
+    assert codex.exists is True
+    assert codex.has_boyce is True
+
+
+def test_detect_hosts_codex_has_boyce_false_without_boyce_entry(tmp_path):
+    """Codex TOML exists but has no boyce entry — has_boyce is False."""
+    import sys
+    if sys.version_info < (3, 11):
+        pytest.skip("tomllib requires Python 3.11+")
+
+    specs = _make_specs_with_codex(tmp_path)
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    config_path = codex_dir / "config.toml"
+    config_path.write_text(
+        '[mcp_servers.other]\ncommand = "other"\nargs = []\nenabled = true\n',
+        encoding="utf-8",
+    )
+
+    hosts = detect_hosts(specs)
+    codex = next(h for h in hosts if h.name == "Codex")
+    assert codex.has_boyce is False
+
+
+def test_merge_toml_config_creates_new(tmp_path):
+    """_merge_toml_config creates a valid TOML file when none exists."""
+    config_path = tmp_path / ".codex" / "config.toml"
+    entry = {"command": "/usr/local/bin/boyce", "args": []}
+    _merge_toml_config(config_path, entry)
+
+    assert config_path.exists()
+    content = config_path.read_text(encoding="utf-8")
+    assert "[mcp_servers.boyce]" in content
+    assert 'command = "/usr/local/bin/boyce"' in content
+    assert "args = []" in content
+    assert "enabled = true" in content
+
+
+def test_merge_toml_config_creates_parent_dirs(tmp_path):
+    """_merge_toml_config creates parent directories if they don't exist."""
+    config_path = tmp_path / "deep" / "nested" / "config.toml"
+    _merge_toml_config(config_path, {"command": "boyce", "args": []})
+    assert config_path.exists()
+
+
+def test_merge_toml_config_with_env(tmp_path):
+    """_merge_toml_config writes env section when env vars are present."""
+    config_path = tmp_path / "config.toml"
+    entry = {
+        "command": "boyce",
+        "args": [],
+        "env": {"BOYCE_DB_URL": "postgresql://user:pass@host/db"},
+    }
+    _merge_toml_config(config_path, entry)
+
+    content = config_path.read_text(encoding="utf-8")
+    assert "[mcp_servers.boyce.env]" in content
+    assert 'BOYCE_DB_URL = "postgresql://user:pass@host/db"' in content
+
+
+def test_merge_toml_config_preserves_existing(tmp_path):
+    """_merge_toml_config preserves other mcp_servers entries on re-run."""
+    import sys
+    if sys.version_info < (3, 11):
+        pytest.skip("tomllib requires Python 3.11+")
+
+    config_path = tmp_path / "config.toml"
+    # Write initial config with a different server
+    initial = (
+        "[mcp_servers.other-tool]\n"
+        'command = "other"\n'
+        "args = []\n"
+        "enabled = true\n"
+    )
+    config_path.write_text(initial, encoding="utf-8")
+
+    _merge_toml_config(config_path, {"command": "boyce", "args": []})
+
+    content = config_path.read_text(encoding="utf-8")
+    assert "[mcp_servers.boyce]" in content
+    assert "[mcp_servers.other-tool]" in content
+
+
+def test_merge_toml_config_overwrites_existing_boyce(tmp_path):
+    """_merge_toml_config updates boyce entry on re-run without duplicating."""
+    import sys
+    if sys.version_info < (3, 11):
+        pytest.skip("tomllib requires Python 3.11+")
+
+    config_path = tmp_path / "config.toml"
+    initial = (
+        "[mcp_servers.boyce]\n"
+        'command = "/old/path/boyce"\n'
+        "args = []\n"
+        "enabled = true\n"
+    )
+    config_path.write_text(initial, encoding="utf-8")
+
+    _merge_toml_config(config_path, {"command": "/new/path/boyce", "args": []})
+
+    content = config_path.read_text(encoding="utf-8")
+    assert '/new/path/boyce"' in content
+    assert "/old/path/boyce" not in content
+    # Only one boyce section
+    assert content.count("[mcp_servers.boyce]") == 1
+
+
+def test_noninteractive_codex(tmp_path, capsys):
+    """--editors codex works in non-interactive mode."""
+    specs = _make_specs_with_codex(tmp_path)
+    (tmp_path / ".codex").mkdir()
+
+    with patch("boyce.init_wizard._host_specs", return_value=specs):
+        code = _run_wizard_noninteractive(
+            editors=["codex"],
+            db_url=None,
+            skip_db=True,
+            skip_sources=True,
+            skip_existing=False,
+            json_output=True,
+        )
+    assert code == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "ok"
+    assert "Codex" in result["editors_configured"]
+
+    # Verify the TOML file was written
+    config_path = tmp_path / ".codex" / "config.toml"
+    assert config_path.exists()
+    content = config_path.read_text(encoding="utf-8")
+    assert "[mcp_servers.boyce]" in content
