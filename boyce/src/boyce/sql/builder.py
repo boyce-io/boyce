@@ -211,6 +211,10 @@ class SQLBuilder:
         # Build GROUP BY clause (with DATE_TRUNC support)
         group_by_clause = self._build_group_by_clause(grain_context, snapshot)
 
+        # Build ORDER BY and LIMIT (BUG-B)
+        order_by_clause = self._build_order_by_clause(planner_output, snapshot)
+        limit = planner_output.get("limit")
+
         # Assemble final SQL
         sql_parts = [select_clause, from_clause]
         sql_parts.extend(join_clauses)
@@ -218,6 +222,10 @@ class SQLBuilder:
             sql_parts.append(where_clause)
         if group_by_clause:
             sql_parts.append(group_by_clause)
+        if order_by_clause:
+            sql_parts.append(order_by_clause)
+        if limit is not None:
+            sql_parts.append(f"LIMIT {int(limit)}")
 
         final_sql = " ".join(sql_parts)
 
@@ -346,12 +354,38 @@ class SQLBuilder:
                 else:
                     select_fields.append(ref)
 
+        # --- Expression columns (BUG-F) ---
+        for expr in concept_map.get("expressions", []):
+            expr_type = expr.get("expression_type", "")
+            alias = q(expr.get("name", "expression"))
+            if expr_type == "concatenation":
+                separator = expr.get("separator", "")
+                parts = []
+                for f in expr.get("fields", []):
+                    fid = f.get("field_id", "")
+                    fname = f.get("field_name", "")
+                    ref, _ = self._resolve_field_ref(fid, fname, snapshot)
+                    parts.append(ref)
+                if parts:
+                    if separator:
+                        joined = f" || {self._escape_value(separator)} || ".join(parts)
+                    else:
+                        joined = " || ".join(parts)
+                    select_fields.append(f"{joined} AS {alias}")
+
         # --- Metric fields ---
         for metric in concept_map.get("metrics", []):
             metric_name = metric.get("metric_name", "")
             field_id = metric.get("field_id", "")
             if not metric_name:
                 continue
+
+            # BUG-I: COUNT(*) sentinel — empty field_id means COUNT(*)
+            if not field_id and aggregation_required:
+                agg = metric.get("aggregation_type", "COUNT").upper()
+                if agg == "COUNT":
+                    select_fields.append(f"COUNT(*) AS {q(metric_name)}")
+                    continue
 
             # Resolve column name: field_def.name → field_id tail → metric_name
             if field_id:
@@ -565,3 +599,42 @@ class SQLBuilder:
                 quoted.append(ref)
 
         return f"GROUP BY {', '.join(quoted)}" if quoted else ""
+
+    # ------------------------------------------------------------------
+    # ORDER BY clause (BUG-B)
+    # ------------------------------------------------------------------
+
+    def _build_order_by_clause(
+        self,
+        planner_output: Dict[str, Any],
+        snapshot: SemanticSnapshot,
+    ) -> str:
+        """Build ORDER BY clause from planner_output order_by list.
+
+        order_by entries may reference a field_id (raw column) or a metric_name
+        (aggregate alias). The builder handles both.
+        """
+        order_by = planner_output.get("order_by", [])
+        if not order_by:
+            return ""
+
+        q = self.dialect.quote_identifier
+        clauses = []
+        for ob in order_by:
+            direction = ob.get("direction", "ASC")
+            field_id = ob.get("field_id", "")
+            metric_name = ob.get("metric_name", "")
+
+            if field_id:
+                field_def = snapshot.fields.get(field_id)
+                if field_def:
+                    entity = snapshot.entities.get(field_def.entity_id)
+                    if entity:
+                        ref = f"{q(entity.name)}.{q(field_def.name)}"
+                        clauses.append(f"{ref} {direction}")
+                        continue
+            if metric_name:
+                # Reference the aggregate alias from SELECT
+                clauses.append(f"{q(metric_name)} {direction}")
+
+        return f"ORDER BY {', '.join(clauses)}" if clauses else ""

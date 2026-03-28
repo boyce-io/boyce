@@ -183,7 +183,7 @@ via FROM clause extraction.
 **`present_to_user` fires when:** NULL risk detected, EXPLAIN failure, or Redshift
 compat issues. Suppressed on clean queries to prevent noise fatigue.
 
-### StructuredFilter Shape
+### StructuredFilter Shape (v0.2)
 
 The contract between `QueryPlanner` (output) and `kernel.process_request` (input):
 
@@ -193,17 +193,33 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
         "entities":   [{"entity_id": "entity:orders", "entity_name": "orders"}],
         "fields":     [{"field_id": "field:orders:revenue", "field_name": "revenue", "entity_id": "..."}],
         "metrics":    [{"metric_name": "revenue", "field_id": "...", "aggregation_type": "SUM"}],
+                      # field_id="" is the COUNT(*) sentinel — renders as COUNT(*) in SELECT
         "dimensions": [{"field_id": "...", "field_name": "status", "entity_id": "..."}],
         "filters":    [{"field_id": "...", "operator": "=", "value": "active", "entity_id": "..."}],
+        "expressions": [{"name": "full_name", "expression_type": "concatenation",
+                         "fields": [{"field_id": "...", "field_name": "first_name"}, ...],
+                         "separator": " "}],
     },
     "join_path":        ["entity:orders", "entity:customers"],  # Dijkstra output
-    "grain_context":    {"aggregation_required": True, "grouping_fields": [...]},
+    "grain_context":    {"aggregation_required": True,
+                         "grouping_fields": ["field:orders:status"]},  # field_ids, not bare names
     "policy_context":   {"resolved_predicates": []},            # RLS hooks (future)
     "temporal_filters": [{"field_id": "...", "operator": "trailing_interval",
                           "value": {"value": 12, "unit": "month"}}],
     "dialect":          "redshift",   # stamped by server.py before kernel call
+    # v0.2 additions (optional):
+    "order_by":  [{"field_id": "field:orders:revenue", "direction": "DESC"},
+                  {"metric_name": "total_revenue", "direction": "DESC"}],
+    "limit":     5,
+    "expressions": [...],             # same as concept_map.expressions above
 }
 ```
+
+**aggregation_type values:** `COUNT`, `COUNT_DISTINCT`, `SUM`, `AVG`, `MIN`, `MAX`
+
+**COUNT(\*) sentinel:** When `metric.field_id == ""` and `aggregation_type == "COUNT"`, the builder renders `COUNT(*)` instead of `COUNT(column)`.
+
+**Known gap (post-ship):** HAVING clause support. Required for "categories with more than N items" queries. Document as TODO when a benchmark query exercises it.
 
 ### Snapshot Lifecycle
 

@@ -188,7 +188,7 @@ async def _run_mode_a(
         category = query_def.get("category", "")
         if category == "null_trap":
             # Q08: Boyce should use LEFT JOIN to avoid silently dropping all rows
-            result["null_trap_detected"] = "LEFT JOIN" in sql_upper
+            result["null_trap_detected"] = bool(re.search(r"LEFT\s+(OUTER\s+)?JOIN", sql, re.IGNORECASE))
         if category == "dialect_safety":
             # Q09: Boyce should use || not CONCAT() for Redshift safety
             result["dialect_safe"] = "CONCAT(" not in sql_upper
@@ -296,7 +296,7 @@ async def _run_mode_b(
 
         category = query_def.get("category", "")
         if category == "null_trap":
-            result["null_trap_detected"] = "LEFT JOIN" in sql_upper
+            result["null_trap_detected"] = bool(re.search(r"LEFT\s+(OUTER\s+)?JOIN", sql, re.IGNORECASE))
         if category == "dialect_safety":
             result["dialect_safe"] = "CONCAT(" not in sql_upper
 

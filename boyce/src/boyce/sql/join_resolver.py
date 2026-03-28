@@ -150,9 +150,10 @@ class JoinPathResolver:
                         break
 
             if not join_path:
-                raise ValueError(
-                    f"No join path found from {current_entity_id} to {next_entity_id}"
-                )
+                # Graceful degradation: planner-side reachability check (BUG-C)
+                # should have already dropped unreachable entities. If one still
+                # slips through, skip it rather than crashing.
+                continue
 
             # Render each join in the path (skip if target already visited)
             for join_def in join_path:

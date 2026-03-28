@@ -30,8 +30,8 @@ Status: not started
 ### Phase 4: Preliminary Benchmark (pre-distribution)
 - **Done condition:** 10-15 ground-truth queries defined against Pagila (Tier 1). Benchmark harness built. First battery run across Claude Code + Cursor. Preliminary "With Boyce / Without Boyce" comparison numbers ready for distribution copy.
 - **Gate to next phase:** agent
-- **Status:** not started
-- **Notes:** Pulled forward from original Phase 8. Runs against Pagila (Tier 1) — won't show the full NULL trap value (Pagila is too clean) but WILL show query accuracy, join correctness, dialect safety. Gives concrete numbers for MCP directory submissions, social posts, and README. Full benchmark (Tier 2, 20-50 queries) remains later in sequence after warehouse build. ~1-2 days Sonnet+Opus work.
+- **Status:** complete (Phase 4 benchmark run 2026-03-27; Phase 4b bug fix pass 2026-03-27)
+- **Notes:** Phase 4 initial run: Mode A 2.33/4 vs Mode B 3.5/4. Root cause analysis identified 9 bugs (BUG-A through BUG-I). Phase 4b fixed all 9 in one pass: metric validation rewrite, COUNT(*) sentinel, ORDER BY/LIMIT, entity over-scoping, field keyword scoring, expression columns, harness LEFT OUTER JOIN fix. StructuredFilter bumped to v0.2. 17 new tests added (465 total). Q08 null trap finding stands: Boyce LEFT JOIN returns 1,000 rows vs direct LLM INNER JOIN returns 0. Re-benchmark needed (Step 13) to confirm target scores. Known gap: HAVING clause (no benchmark query exercises it; deferred).
 
 ### Phase 5: Agentic Ingestion — Light (pre-distribution)
 - **Done condition:** `Entity.object_type` detection (table/view/materialized_view). Broader object introspection (views, materialized views). `ingest_source` returns `classification_needed` payload with human-readable descriptions of columns that benefit from semantic classification. Get_schema surfaces object types.

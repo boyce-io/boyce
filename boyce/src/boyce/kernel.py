@@ -38,7 +38,24 @@ Expected StructuredFilter shape (same as legacy api.py):
     "policy_context": {
         "resolved_predicates": []   # row-level security predicates (future)
     },
-    "dialect": "redshift"           # target SQL dialect
+    "dialect": "redshift",          # target SQL dialect
+    # StructuredFilter v0.2 additions:
+    "order_by": [                   # optional — ORDER BY clause
+        {"field_id": "field:orders:created_at", "direction": "DESC"},
+        {"metric_name": "total_revenue", "direction": "DESC"}
+    ],
+    "limit": 5,                     # optional — LIMIT clause
+    "expressions": [                # optional — computed SELECT columns
+        {
+            "name": "full_name",
+            "expression_type": "concatenation",
+            "fields": [
+                {"field_id": "field:customer:first_name", "field_name": "first_name"},
+                {"field_id": "field:customer:last_name",  "field_name": "last_name"}
+            ],
+            "separator": " "
+        }
+    ]
 }
 """
 
@@ -89,11 +106,18 @@ def process_request(
             "metrics":    concept_map.get("metrics",    structured_filter.get("metrics", [])),
             "dimensions": concept_map.get("dimensions", structured_filter.get("dimensions", [])),
             "filters":    filters,
+            # BUG-F: expressions rendered in SELECT clause via concept_map
+            "expressions": structured_filter.get("expressions", []),
         },
         "filters":          filters,
         "temporal_filters": structured_filter.get("temporal_filters", []),
         "join_path":        structured_filter.get("join_path", []),
         "grain_context":    structured_filter.get("grain_context", {}),
         "policy_context":   structured_filter.get("policy_context", {"resolved_predicates": []}),
+        # BUG-B: ORDER BY / LIMIT passthrough
+        "order_by":         structured_filter.get("order_by", []),
+        "limit":            structured_filter.get("limit"),
+        # BUG-F: expressions passthrough (top-level for ORDER BY cross-reference)
+        "expressions":      structured_filter.get("expressions", []),
     }
     return builder.build_final_sql(planner_output, snapshot)
