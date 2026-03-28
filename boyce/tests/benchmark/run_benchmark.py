@@ -593,7 +593,14 @@ async def run_benchmark() -> None:
     await adapter.connect()
     print("     ✓ Connected")
 
-    planner = QueryPlanner(provider=provider, model=model_id)
+    # Resolve API key explicitly so OPENAI_API_KEY in env doesn't shadow Anthropic key
+    _api_key = (
+        os.environ.get("LITELLM_API_KEY")
+        or os.environ.get(f"{provider.upper()}_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("ANTHROPIC_API_KEY")
+    )
+    planner = QueryPlanner(provider=provider, model=model_id, api_key=_api_key)
 
     results_a: List[Dict[str, Any]] = []
     results_b: List[Dict[str, Any]] = []

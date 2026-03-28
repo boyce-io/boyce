@@ -1,0 +1,295 @@
+{
+  "n_queries": 12,
+  "mode_a": {
+    "row_count_match": 100,
+    "top_result_match": 83,
+    "join_correctness": 83,
+    "explain_valid": 100,
+    "avg_score": 3.67
+  },
+  "mode_b": {
+    "row_count_match": 92,
+    "top_result_match": 83,
+    "join_correctness": 92,
+    "explain_valid": 100,
+    "avg_score": 3.67
+  },
+  "per_query": [
+    {
+      "id": "Q01",
+      "category": "single_entity_aggregation",
+      "nl_prompt": "How many films are in each rating category?",
+      "mode_a": {
+        "score": 4,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"film\".\"rating\", COUNT(\"film\".\"rental_rate\") AS \"film_count\" FROM \"film\" GROUP BY \"film\".\"rating\""
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT rating, COUNT(*) AS film_count\nFROM film\nGROUP BY rating;"
+      }
+    },
+    {
+      "id": "Q02",
+      "category": "multi_entity_join",
+      "nl_prompt": "Top 5 customers by total number of rentals",
+      "mode_a": {
+        "score": 3,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"rental\".\"customer_id\", COUNT(\"rental\".\"rental_id\") AS \"total_rentals\" FROM \"rental\" LEFT OUTER JOIN \"customer\" ON \"rental\".\"customer_id\" = \"customer\".\"customer_id\" GROUP BY \"rental\".\"customer_id\" ORDER BY \"total_rentals\" DESC LIMIT 5"
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT c.customer_id, c.first_name, c.last_name, COUNT(r.rental_id) AS total_rentals\nFROM customer c\nJOIN rental r ON c.customer_id = r.customer_id\nGROUP BY c.customer_id, c.first_name, c.last_name\nORDER BY total_rentals DESC\nLIMIT 5;"
+      }
+    },
+    {
+      "id": "Q03",
+      "category": "complex_join",
+      "nl_prompt": "Total revenue by film category, top 5",
+      "mode_a": {
+        "score": 3,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"sales_by_film_category\".\"category\", SUM(\"sales_by_film_category\".\"total_sales\") AS \"total_revenue\" FROM \"sales_by_film_category\" GROUP BY \"sales_by_film_category\".\"category\" ORDER BY \"total_revenue\" DESC LIMIT 5"
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT c.name AS category, SUM(p.amount) AS total_revenue\nFROM payment p\nJOIN rental r ON p.rental_id = r.rental_id\nJOIN inventory i ON r.inventory_id = i.inventory_id\nJOIN film_category fc ON i.film_id = fc.film_id\nJOIN category c ON fc.category_id = c.category_id\nGROUP BY c.name\nORDER BY total_revenue DESC\nLIMIT 5;"
+      }
+    },
+    {
+      "id": "Q04",
+      "category": "single_entity_aggregation",
+      "nl_prompt": "How many distinct films does each store have in inventory?",
+      "mode_a": {
+        "score": 4,
+        "row_count": 2,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"inventory\".\"store_id\", COUNT(DISTINCT \"inventory\".\"film_id\") AS \"distinct_films_count\" FROM \"inventory\" GROUP BY \"inventory\".\"store_id\""
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 2,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT store_id, COUNT(DISTINCT film_id) AS distinct_films\nFROM inventory\nGROUP BY store_id;"
+      }
+    },
+    {
+      "id": "Q05",
+      "category": "multi_entity_join",
+      "nl_prompt": "Which actors appear in the most films? Top 5",
+      "mode_a": {
+        "score": 4,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"film_actor\".\"actor_id\", \"actor\".\"first_name\", \"actor\".\"last_name\", COUNT(\"film_actor\".\"film_id\") AS \"film_count\" FROM \"film_actor\" LEFT OUTER JOIN \"actor\" ON \"film_actor\".\"actor_id\" = \"actor\".\"actor_id\" GROUP BY \"film_actor\".\"actor_id\", \"actor\".\"first_name\", \"actor\".\"last_name\" ORDER BY \"film_count\" DESC LIMIT 5"
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT a.actor_id, a.first_name, a.last_name, COUNT(fa.film_id) AS film_count\nFROM actor a\nJOIN film_actor fa ON a.actor_id = fa.actor_id\nGROUP BY a.actor_id, a.first_name, a.last_name\nORDER BY film_count DESC\nLIMIT 5;"
+      }
+    },
+    {
+      "id": "Q06",
+      "category": "complex_join",
+      "nl_prompt": "Which countries have the most customers? Top 5",
+      "mode_a": {
+        "score": 4,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"country\".\"country\", COUNT(\"customer\".\"customer_id\") AS \"customer_count\" FROM \"customer\" LEFT OUTER JOIN \"address\" ON \"customer\".\"address_id\" = \"address\".\"address_id\" LEFT OUTER JOIN \"city\" ON \"address\".\"city_id\" = \"city\".\"city_id\" LEFT OUTER JOIN \"country\" ON \"city\".\"country_id\" = \"country\".\"country_id\" GROUP BY \"country\".\"country\" ORDER BY \"customer_count\" DESC LIMIT 5"
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT co.country, COUNT(c.customer_id) AS customer_count\nFROM customer c\nJOIN address a ON c.address_id = a.address_id\nJOIN city ci ON a.city_id = ci.city_id\nJOIN country co ON ci.country_id = co.country_id\nGROUP BY co.country\nORDER BY customer_count DESC\nLIMIT 5;"
+      }
+    },
+    {
+      "id": "Q07",
+      "category": "temporal_aggregation",
+      "nl_prompt": "Average rental duration in days by film rating",
+      "mode_a": {
+        "score": 3,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"film\".\"rating\", AVG(\"film\".\"rental_duration\") AS \"average_rental_duration\" FROM \"film\" GROUP BY \"film\".\"rating\""
+      },
+      "mode_b": {
+        "score": 3,
+        "row_count": 5,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT rating, AVG(rental_duration) AS average_rental_duration\nFROM film\nGROUP BY rating;"
+      }
+    },
+    {
+      "id": "Q08",
+      "category": "null_trap",
+      "nl_prompt": "What is the original language of each film?",
+      "mode_a": {
+        "score": 3,
+        "row_count": 1000,
+        "explain_valid": true,
+        "null_trap_detected": true,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"film\".\"title\", \"language\".\"name\" FROM \"film\" LEFT OUTER JOIN \"language\" ON \"film\".\"language_id\" = \"language\".\"language_id\""
+      },
+      "mode_b": {
+        "score": 2,
+        "row_count": 0,
+        "explain_valid": true,
+        "null_trap_detected": false,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT f.film_id, f.title, l.name AS original_language\nFROM film f\nJOIN language l ON f.original_language_id = l.language_id;"
+      }
+    },
+    {
+      "id": "Q09",
+      "category": "dialect_safety",
+      "nl_prompt": "Show customer full names (first and last name combined)",
+      "mode_a": {
+        "score": 4,
+        "row_count": 599,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": true,
+        "error": null,
+        "sql": "SELECT \"customer\".\"first_name\" || ' ' || \"customer\".\"last_name\" AS \"full_name\" FROM \"customer\""
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 599,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": true,
+        "error": null,
+        "sql": "SELECT first_name || ' ' || last_name AS full_name FROM customer;"
+      }
+    },
+    {
+      "id": "Q10",
+      "category": "filter_aggregation",
+      "nl_prompt": "How many rentals have not been returned yet?",
+      "mode_a": {
+        "score": 4,
+        "row_count": 1,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT COUNT(*) AS \"unreturned_rentals\" FROM \"rental\" WHERE \"rental\".\"return_date\" IS NULL"
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 1,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT COUNT(*) AS not_returned_rentals\nFROM rental\nWHERE return_date IS NULL;"
+      }
+    },
+    {
+      "id": "Q11",
+      "category": "simple_aggregation",
+      "nl_prompt": "What is the total revenue from all payments?",
+      "mode_a": {
+        "score": 4,
+        "row_count": 1,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT SUM(\"payment\".\"amount\") AS \"total_revenue\" FROM \"payment\""
+      },
+      "mode_b": {
+        "score": 4,
+        "row_count": 1,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT SUM(amount) AS total_revenue FROM payment;"
+      }
+    },
+    {
+      "id": "Q12",
+      "category": "complex_join_with_filter",
+      "nl_prompt": "List customers from the United States",
+      "mode_a": {
+        "score": 4,
+        "row_count": 36,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT \"customer_list\".\"id\", \"customer_list\".\"name\", \"customer_list\".\"address\", \"customer_list\".\"zip code\", \"customer_list\".\"phone\", \"customer_list\".\"city\", \"customer_list\".\"country\", \"customer_list\".\"notes\", \"customer_list\".\"sid\" FROM \"customer_list\" WHERE \"customer_list\".\"country\" = 'United States'"
+      },
+      "mode_b": {
+        "score": 3,
+        "row_count": 36,
+        "explain_valid": true,
+        "null_trap_detected": null,
+        "dialect_safe": null,
+        "error": null,
+        "sql": "SELECT c.customer_id, c.first_name, c.last_name, c.email\nFROM customer c\nJOIN address a ON c.address_id = a.address_id\nJOIN city ci ON a.city_id = ci.city_id\nJOIN country co ON ci.country_id = co.country_id\nWHERE co.country = 'United States';"
+      }
+    }
+  ]
+}
