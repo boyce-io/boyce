@@ -14,6 +14,7 @@ from boyce.types import (
     JoinDef,
     SemanticSnapshot,
 )
+from boyce.validation import canonicalize_snapshot_for_hash
 
 
 @runtime_checkable
@@ -45,7 +46,11 @@ def build_snapshot(
     joins: List[JoinDef],
     metadata: Dict[str, Any],
 ) -> SemanticSnapshot:
-    """Compute SHA-256 snapshot_id and return a frozen SemanticSnapshot."""
+    """Compute SHA-256 snapshot_id and return a frozen SemanticSnapshot.
+
+    Uses canonicalize_snapshot_for_hash() to strip profiling fields before
+    hashing, ensuring the snapshot_id is stable across profile runs.
+    """
     payload = {
         "source_system": source_system,
         "source_version": source_version,
@@ -55,7 +60,8 @@ def build_snapshot(
         "joins": [j.model_dump(mode="json") for j in joins],
         "metadata": metadata,
     }
-    content = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    canonical = canonicalize_snapshot_for_hash(payload)
+    content = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     snapshot_id = hashlib.sha256(content.encode("utf-8")).hexdigest()
     payload["snapshot_id"] = snapshot_id
     return SemanticSnapshot(**payload)

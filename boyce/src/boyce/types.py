@@ -58,6 +58,12 @@ class Entity(BaseModel):
         description: Optional description of the entity
         fields: List of fields (columns/measures) belonging to this entity
         grain: Optional grain specification (e.g., "ORDER", "DAILY", "CUSTOMER")
+
+    Profiling fields (populated by profiler.py, excluded from snapshot_id hash):
+        object_type: Storage type — "table", "view", "materialized_view", "external_table"
+        row_count: Total row count as of last profile run
+        view_sql: Raw view definition SQL (requires SQL parser — deferred)
+        view_lineage: Source entity IDs this view reads from (deferred)
     """
 
     model_config = {"frozen": True, "populate_by_name": True}
@@ -68,6 +74,11 @@ class Entity(BaseModel):
     description: Optional[str] = None
     fields: List[str] = Field(default_factory=list)  # List of field IDs
     grain: Optional[str] = None
+    # Profiling fields — excluded from snapshot_id hash
+    object_type: Optional[str] = None
+    row_count: Optional[int] = None
+    view_sql: Optional[str] = None
+    view_lineage: Optional[List[str]] = None
 
     def to_vector_store_record(self) -> Dict[str, Any]:
         """JSON-safe dict for vector stores / agents. Uses Pydantic model_dump(mode='json')."""
@@ -88,6 +99,13 @@ class FieldDef(BaseModel):
         primary_key: Whether this is a primary key
         description: Optional description
         valid_values: Optional list of valid enum values (for filters)
+
+    Profiling fields (populated by profiler.py, excluded from snapshot_id hash):
+        null_rate: Fraction of rows where this column is NULL (0.0–1.0)
+        distinct_count: Number of distinct non-NULL values
+        sample_values: Distinct values when distinct_count <= 25 (enum detection)
+        business_description: Human-readable column meaning from parser or host LLM
+        business_rules: Assertions from dbt tests or similar (e.g. "not_null", "unique")
     """
 
     model_config = {"frozen": True}
@@ -101,6 +119,12 @@ class FieldDef(BaseModel):
     primary_key: bool = False
     description: Optional[str] = None
     valid_values: Optional[List[str]] = None
+    # Profiling fields — excluded from snapshot_id hash
+    null_rate: Optional[float] = None
+    distinct_count: Optional[int] = None
+    sample_values: Optional[List[str]] = None
+    business_description: Optional[str] = None
+    business_rules: Optional[List[str]] = None
 
 
 class JoinDef(BaseModel):
@@ -115,6 +139,10 @@ class JoinDef(BaseModel):
         source_field_id: ID of the source field used in the join
         target_field_id: ID of the target field used in the join
         description: Optional description of the relationship
+
+    Profiling fields (populated by profiler.py, excluded from snapshot_id hash):
+        join_confidence: FK match rate (0.0–1.0) — fraction of FK values with a parent match
+        orphan_rate: Fraction of FK values with no parent match (1.0 - join_confidence)
     """
 
     model_config = {"frozen": True}
@@ -126,6 +154,9 @@ class JoinDef(BaseModel):
     source_field_id: str
     target_field_id: str
     description: Optional[str] = None
+    # Profiling fields — excluded from snapshot_id hash
+    join_confidence: Optional[float] = None
+    orphan_rate: Optional[float] = None
 
 
 class SemanticSnapshot(BaseModel):
@@ -156,6 +187,8 @@ class SemanticSnapshot(BaseModel):
     fields: Dict[str, FieldDef] = Field(default_factory=dict)
     joins: List[JoinDef] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    # Profiling timestamp — excluded from snapshot_id hash
+    profiled_at: Optional[str] = None  # ISO 8601 timestamp of last profile run
 
     def get_entity_fields(self, entity_id: str) -> List[FieldDef]:
         """Get all fields for a given entity."""

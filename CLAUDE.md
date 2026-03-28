@@ -26,7 +26,7 @@ Follows the Mandatory Model Gate defined in `~/.claude/CLAUDE.md`.
 
 ## Ops Layer
 
-This project uses the Convergent Methods ops layer protocol. The canonical protocol definition lives in the CM root CLAUDE.md (`/Users/willwright/ConvergentMethods/CLAUDE.md`). Follow all ops layer behaviors defined there: session boot sequence, session end protocol, amendment protocol, session log rotation, status bar, and directory scope rules.
+This project uses the Convergent Methods ops layer protocol. The canonical protocol definition lives in `/Users/willwright/ConvergentMethods/_strategy/OPS_LAYER_PROTOCOL.md`. Read it at session boot. Follow all ops layer behaviors defined there: session boot sequence, session end protocol, amendment protocol, session log rotation, status bar, and directory scope rules.
 
 On session boot, read `ROADMAP.md` and `SESSION_LOG.md` at the repo root before doing any work. These files govern phase sequencing and session continuity.
 
@@ -256,7 +256,7 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 | Redshift safety | `safety.py` — `lint_redshift_compat()`, `transform_sql_for_redshift_safety()` |
 | Snapshot persistence | `store.py` — `SnapshotStore` (`_local_context/` JSON files) |
 | Business definitions | `store.py` — `DefinitionStore` (`_local_context/` JSON files) |
-| Validation + hashing | `validation.py` — `validate_snapshot()`, `_compute_snapshot_hash()` |
+| Validation + hashing | `validation.py` — `validate_snapshot()`, `_compute_snapshot_hash()`, `canonicalize_snapshot_for_hash()` (single source of truth for hash exclusions) |
 | Audit log | `audit.py` — `AuditLog` (append-only JSONL) |
 
 ### MCP Tools (8)
@@ -288,6 +288,7 @@ Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host 
 | `tests/test_connections.py` | ConnectionStore: save/load/touch/remove/list_all, DSN persistence, edge cases (16 tests) |
 | `tests/test_doctor.py` | Doctor checks: version, editors, database, snapshots, sources, server, orchestrator, JSON output (20 tests) |
 | `tests/test_version_check.py` | Version lifecycle: PyPI fetch, disk cache, classify update, stale-process, install detection, cooldown, nudge filtering, run_update (37 tests) |
+| `tests/test_sprint1a_schema_extensions.py` | Sprint 1a: profiling field defaults, values, hash exclusion invariants, build→validate round-trip (16 tests) |
 | `tests/live_fire/run_mission.py` | Full pipeline: Docker Postgres + LLM + EXPLAIN |
 | `demo/magic_moment/verify_demo.py` | Demo smoke test — NULL Trap distribution check |
 | `quickstart.sh` | Dev setup: install, `.env` template, verify_eyes |

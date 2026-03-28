@@ -147,3 +147,22 @@
 - Known gap added: HAVING clause (no benchmark query exercises it; defer to when a query requires it)
 
 ---
+
+## 2026-03-27 — Phase 5: Agentic Ingestion Light
+
+**Accomplishments:**
+- Reviewed `_extract_referenced_columns` test coverage in `boyce/tests/test_response_guidance.py` against the implementation in `boyce/src/boyce/server.py`
+- Confirmed missing negative-coverage cases around string literals, subquery/table-name leakage, and type-name leakage; also identified missing direct coverage for quoted identifiers, multi-column clauses, and duplicate-column precedence behavior
+- Wrote persistent review notes to `_local_context/2026-03-27-extract-referenced-columns-test-review.md`
+- Updated `/Users/willwright/ConvergentMethods/MASTER.md` to reflect Codex onboarding as a secondary execution engine in the CM operating stack
+
+**Incomplete:**
+- No test changes implemented yet
+
+**Next step:** If requested, add the missing `_extract_referenced_columns` test cases without changing implementation behavior.
+**Gate status:** agent-gated
+
+**Proposed amendments:**
+- None
+
+---

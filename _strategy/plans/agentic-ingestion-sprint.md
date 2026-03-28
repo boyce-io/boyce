@@ -2,7 +2,7 @@
 
 **Created:** 2026-03-28
 **Phase:** Phase 5 (ROADMAP.md)
-**Status:** Sprint planning complete, execution starting
+**Status:** Sprint 0 COMPLETE (Branch A). Sprint 1a next.
 **Priority order:** Profiling > parsers (standing order, CM MASTER.md)
 
 ---
@@ -23,12 +23,16 @@ Sprint builds:
 
 ---
 
-## Sprint 0 — Haiku Regression Root Cause
+## Sprint 0 — Haiku Regression Root Cause — COMPLETE
 
-**Deliverable:** A one-paragraph diagnosis naming the branch, the specific
-query-level evidence, and (if Branch B) a proposed scope for StructuredFilter
-simplification. The deliverable is understanding, not code. Do not implement
-a fix in Sprint 0.
+**Status:** COMPLETE (2026-03-28). **Branch A confirmed.**
+**Deliverable:** `_strategy/research/sprint0-haiku-diagnosis.md` + `sprint0-diagnosis.json`
+
+**Finding:** Stripped StructuredFilter scored WORSE (2.50) than full (3.42),
+not better. Join correctness identical (83%). Field selection improved when
+stripped, proving Haiku understands the query but fails to categorize columns
+into metrics/dimensions slots. Root cause: planner prompt, not abstraction.
+Sprint continues as planned.
 
 ### Branch Criteria
 
@@ -60,10 +64,23 @@ it's Branch A.
 
 ---
 
-## Sprint 1 — Schema Extensions
+## Sprint 1 — Schema Extensions — COMPLETE
 
-Extend `SemanticSnapshot` / `FieldDef` / `Entity` types to carry profiling
-data. No live database queries yet — just the schema slots that Sprint 2 fills.
+**Status:** COMPLETE (2026-03-28).
+
+**FieldDef additions:** `null_rate`, `distinct_count`, `sample_values`,
+`business_description`, `business_rules`
+
+**Entity additions:** `object_type`, `row_count`, `view_sql`, `view_lineage`
+
+**JoinDef additions:** `join_confidence`, `orphan_rate`
+
+**SemanticSnapshot addition:** `profiled_at` (ISO 8601 timestamp)
+
+**Hash invariant:** All profiling fields excluded from `snapshot_id` hash via
+`canonicalize_snapshot_for_hash()` in `validation.py` — both `build_snapshot()`
+and `_compute_snapshot_hash()` call this function. 16 new tests. 481 total
+tests pass.
 
 ---
 

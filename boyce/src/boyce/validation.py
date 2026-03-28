@@ -126,12 +126,63 @@ def validate_snapshot(snapshot_data: dict) -> List[str]:
     return errors
 
 
+# Profiling fields are excluded from the snapshot_id hash.
+# The hash represents structural identity (schema shape, joins, base field attributes).
+# Profiling data is observational metadata that changes without altering schema identity.
+_SNAPSHOT_PROFILING_FIELDS: frozenset = frozenset({"profiled_at"})
+_ENTITY_PROFILING_FIELDS: frozenset = frozenset({"object_type", "row_count", "view_sql", "view_lineage"})
+_FIELD_PROFILING_FIELDS: frozenset = frozenset({"null_rate", "distinct_count", "sample_values", "business_description", "business_rules"})
+_JOIN_PROFILING_FIELDS: frozenset = frozenset({"join_confidence", "orphan_rate"})
+
+
+def canonicalize_snapshot_for_hash(snapshot_dict: dict) -> dict:
+    """
+    Strip snapshot_id and all profiling fields from a snapshot dict, returning the
+    canonical form used for SHA-256 hash computation.
+
+    This is the single source of truth for what goes into the hash. Both
+    build_snapshot() (at creation time) and _compute_snapshot_hash() (at validation
+    time) must call this function to guarantee the hash is consistent.
+
+    Args:
+        snapshot_dict: Raw dict from SemanticSnapshot.model_dump(mode="json") or
+                       a manually constructed dict with the same structure.
+
+    Returns:
+        New dict with snapshot_id and all profiling fields removed.
+    """
+    result = {
+        k: v for k, v in snapshot_dict.items()
+        if k != "snapshot_id" and k not in _SNAPSHOT_PROFILING_FIELDS
+    }
+
+    if "entities" in result:
+        result["entities"] = {
+            eid: {k: v for k, v in edata.items() if k not in _ENTITY_PROFILING_FIELDS}
+            for eid, edata in result["entities"].items()
+        }
+
+    if "fields" in result:
+        result["fields"] = {
+            fid: {k: v for k, v in fdata.items() if k not in _FIELD_PROFILING_FIELDS}
+            for fid, fdata in result["fields"].items()
+        }
+
+    if "joins" in result:
+        result["joins"] = [
+            {k: v for k, v in jdata.items() if k not in _JOIN_PROFILING_FIELDS}
+            for jdata in result["joins"]
+        ]
+
+    return result
+
+
 def _compute_snapshot_hash(snapshot: SemanticSnapshot) -> str:
     """
     Compute the SHA-256 hash of a SemanticSnapshot.
 
-    The hash is computed over the canonical JSON serialization, excluding
-    the snapshot_id field itself.
+    Delegates canonicalization to canonicalize_snapshot_for_hash() so that
+    build_snapshot() and validate_snapshot() always agree on what gets hashed.
 
     Args:
         snapshot: SemanticSnapshot instance
@@ -140,12 +191,10 @@ def _compute_snapshot_hash(snapshot: SemanticSnapshot) -> str:
         64-character hexadecimal SHA-256 hash string
     """
     snapshot_dict = snapshot.model_dump(mode="json")
-
-    if "snapshot_id" in snapshot_dict:
-        snapshot_dict = {k: v for k, v in snapshot_dict.items() if k != "snapshot_id"}
+    canonical = canonicalize_snapshot_for_hash(snapshot_dict)
 
     snapshot_json = json.dumps(
-        snapshot_dict,
+        canonical,
         sort_keys=True,
         ensure_ascii=False,
         separators=(",", ":"),
