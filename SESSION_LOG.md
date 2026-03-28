@@ -107,3 +107,43 @@
 - None
 
 ---
+
+## 2026-03-27 — Phase 4b: Benchmark Bug Fix Pass
+
+**Accomplishments:**
+- Root cause analysis → 9 bugs classified (BUG-A through BUG-I), 2 discovered by Opus beyond CC's original 7
+- Executed Opus's 14-step bug fix plan in one pass (Sonnet · high):
+  - BUG-A (CRITICAL): Metric validation rewrite — decoupled metric_name from field lookup. Affected 6/12 queries.
+  - BUG-B (HIGH): ORDER BY + LIMIT support added — planner, kernel, builder (new `_build_order_by_clause()`)
+  - BUG-C (MEDIUM): Entity over-scoping — nx.has_path() reachability check; join_resolver degrades gracefully
+  - BUG-D (LOW): grouping_fields now emits field_ids, not bare names (table-qualified GROUP BY)
+  - BUG-E (LOW): Harness LEFT OUTER JOIN regex fix
+  - BUG-F (LOW): Expression columns (concatenation) — `col1 || ' ' || col2 AS alias`
+  - BUG-G (MEDIUM): Field resolution keyword scoring — `_score_field_match()` splits on underscores
+  - BUG-H (HIGH): COUNT_DISTINCT added to planner prompt
+  - BUG-I (MEDIUM): COUNT(*) sentinel — empty field_id + COUNT → `COUNT(*)`
+  - Prompt fix: limit/order_by made strictly conditional on Top-N intent (fixed gpt-4o-mini overuse)
+- StructuredFilter bumped to v0.2 (order_by, limit, expressions fields)
+- 17 new tests in test_bugfix_phase4b.py — 465 total, 6 skipped, all pass
+- Benchmark v2 results (gpt-4o-mini, Pagila):
+  - Mode A avg: **3.5/4** (up from 2.33) — TARGET HIT
+  - Row count accuracy: **100%** (up from 33%)
+  - Top result accuracy: 75% (up from 42%)
+  - Join correctness: 75% (up from 67%)
+  - EXPLAIN verified: 100% (up from 92%)
+  - Q09 (dialect): BUG-F working — `first_name || ' ' || last_name` renders correctly
+- 6 commits pushed to main (ae9421f → 24e8e26)
+
+**Incomplete:**
+- Q08 null_trap_detected still False (language entity resolves to primary language FK not original_language_id — Pagila's join graph only has one FK from film→language)
+- Q02, Q03, Q05 each 3/4 (not 4/4 — COUNT vs COUNT DISTINCT, view-based results)
+- Q07, Q09 each 3/4 (Q07: temporal join missing; Q09: returns 599 rows not 5 — no Top-N so correct, scored partial)
+
+**Next step:** Phase 4 complete. Proceed to Phase 5 (Agentic Ingestion Light) — agent-gated.
+**Gate status:** Agent-gated
+
+**Proposed amendments:**
+- ROADMAP Phase 4 status updated to "complete" (done this session)
+- Known gap added: HAVING clause (no benchmark query exercises it; defer to when a query requires it)
+
+---

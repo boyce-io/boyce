@@ -10,14 +10,14 @@
 Boyce is a privacy-first SQL compiler and open semantic protocol (SemanticSnapshot) exposed as an MCP server. MIT-licensed engine, monetizable experience layer (IDE extensions, hosted service). Named for Raymond F. Boyce, co-inventor of SQL. The thesis: AI agents are the primary consumers of developer tools, and the interface between agents and databases is a behavioral design problem, not just an engineering one. Open protocols win adoption; monetize the experience layer.
 
 ## Current State
-- **Phase:** Phase 3 — Platform Expansion (pre-distribution)
-- **Status:** v0.1.0 published to PyPI (2026-03-24). Terminology refresh complete (2026-03-24). Roadmap resequenced (2026-03-27). 438 tests, 24 CLI smoke checks.
-- **Active work:** Platform Expansion (Codex support), then Preliminary Benchmark, then Agentic Ingestion Light — all before distribution.
+- **Phase:** Phase 4 — Preliminary Benchmark COMPLETE. Next: Phase 5 (Agentic Ingestion Light)
+- **Status:** v0.1.0 on PyPI. 465 tests. Phase 4b benchmark bug fix pass complete. StructuredFilter v0.2.
+- **Active work:** Phase 5 — Agentic Ingestion Light (agent-gated). HITL gate before Phase 6 (Distribution).
 
 ## Recent Decisions
-- 2026-03-27: Roadmap resequenced — Phases 3-5 (Platform Expansion, Preliminary Benchmark, Agentic Ingestion Light) execute before distribution. Phase 10 split into light (pre-distribution) and full (pre-v1.0.0). Rationale: stronger launch copy with 7 platforms, benchmark numbers, and agentic ingestion in feature list.
-- 2026-03-24: Terminology refresh — Eyes/Brain/Nervous System → SQL Compiler/Database Inspector/Query Verification. "Advertising layer" → "Response Guidance." Function + test renames. LLM-optimized naming for dual human/agent audience.
-- 2026-03-24: Published v0.1.0 to PyPI. GitHub release tagged. UV_PUBLISH_TOKEN in .zshrc.
+- 2026-03-27 (Phase 4b): 9 bugs fixed in one pass. Benchmark v2: Mode A 3.5/4 (up from 2.33), row count 100% (up from 33%). Distribution copy number confirmed: Boyce LEFT JOIN returns 1,000 rows vs direct LLM INNER JOIN returns 0 on null-trap column. StructuredFilter v0.2 adds order_by, limit, expressions.
+- 2026-03-27: Roadmap resequenced — Phases 3-5 (Platform Expansion, Preliminary Benchmark, Agentic Ingestion Light) execute before distribution.
+- 2026-03-24: Terminology refresh — SQL Compiler/Database Inspector/Query Verification. v0.1.0 published. Cursor test passed.
 - 2026-03-24: Cursor cross-platform test passed (6/6). Init wizard fix: platform-specific restart instructions.
 
 ## Open Questions
