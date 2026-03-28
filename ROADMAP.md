@@ -4,7 +4,7 @@
 > Will authors phases and gate types. CC maintains status and proposes amendments.
 
 ## Current Phase
-Phase: Preliminary Benchmark (pre-distribution)
+Phase: Phase 5 — Agentic Ingestion Light (pre-distribution)
 Status: not started
 
 ## Phases
@@ -43,7 +43,7 @@ Status: not started
 - **Done condition:** All 4 MCP directories submitted (Smithery, PulseMCP, mcp.so, Glama). JetBrains ACP Registry submitted. Null Trap essay posted to HN. Cross-posted to r/dataengineering, r/database, Dev.to. dbt Slack #tools intro. 3-4 social posts (Twitter/X, Bluesky, LinkedIn).
 - **Gate to next phase:** HITL
 - **Status:** not started
-- **Notes:** Predominantly Will-executed. CC drafts, Will posts. NOW launches with: 7 platforms, preliminary benchmark numbers, agentic ingestion in feature list, refreshed terminology (SQL Compiler, Database Inspector, Query Verification). Content pre-drafted in `_strategy/mcp-directory-submissions.md`. Social post themes in MASTER.md. Terminology refreshed 2026-03-24. After publish, file USPTO trademark application for "Boyce" (~$250, TEAS Plus).
+- **Notes:** Predominantly Will-executed. CC drafts, Will posts. NOW launches with: 7 platforms, null trap anecdote (1,000 vs 0 rows), agentic ingestion in feature list, refreshed terminology (SQL Compiler, Database Inspector, Query Verification). Aggregate benchmark scores NOT for distribution (Boyce ties direct LLM on clean schemas — misleading as "accuracy improvement"). Content pre-drafted in `_strategy/mcp-directory-submissions.md`. Social post themes in MASTER.md. Terminology refreshed 2026-03-24. After publish, file USPTO trademark application for "Boyce" (~$250, TEAS Plus).
 
 ### Phase 7: Post-Publish Audit
 - **Done condition:** Agent SEO baseline across Claude/GPT/Gemini. All 8 public surfaces verified current. "The Arrogant Agent Problem" essay draft complete.
