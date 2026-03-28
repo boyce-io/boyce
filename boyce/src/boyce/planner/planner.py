@@ -193,10 +193,7 @@ class QueryPlanner:
     "field": "created_at",
     "operator": "trailing_interval",
     "value": {"value": 12, "unit": "month"}
-  },
-  "order_by": [{"field": "column_or_metric_alias", "direction": "ASC|DESC"}],
-  "limit": 5,
-  "expressions": [{"name": "alias", "expression_type": "concatenation", "fields": ["col1", "col2"], "separator": " "}]
+  }
 }
 
 Rules:
@@ -204,8 +201,10 @@ Rules:
 - For metrics: name is the output alias, field is the actual column name to aggregate
 - aggregation_type options: "COUNT", "COUNT_DISTINCT", "SUM", "AVG", "MIN", "MAX"
 - For COUNT(*) with no specific column, omit the "field" key or set it to "*"
-- For "Top N", "most", "least" queries, include order_by and limit
-- For "combined", "full name", "concatenated" requests, use expressions with expression_type "concatenation"
+- ONLY add "order_by" and "limit" when the query explicitly asks for top/bottom/most/least N results (e.g. "Top 5", "most popular", "least expensive"). Do NOT add them otherwise.
+  order_by format: [{"field": "column_or_metric_alias", "direction": "ASC or DESC"}]
+  limit format: integer (e.g. 5)
+- For "combined", "full name", "concatenated" requests, add "expressions": [{"name": "alias", "expression_type": "concatenation", "fields": ["col1", "col2"], "separator": " "}]
 - For filters, operator: "=", "!=", ">", ">=", "<", "<=", "IN", "NOT IN", "LIKE", "ILIKE", "IS NULL", "IS NOT NULL"
 - For temporal filters, operator: "trailing_interval", "leading_interval", "between", "on_or_after", "on_or_before", "equals"
 - Return ONLY valid JSON, no markdown, no explanation"""
