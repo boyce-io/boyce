@@ -5,7 +5,7 @@
 
 ## Current Phase
 Phase: Phase 5 — Agentic Ingestion Sprint
-Status: in progress (sprint planning complete, execution starting)
+Status: in progress — Sprints 0/1a/2 complete, Sprint 3 executing
 
 ## Phases
 
@@ -36,8 +36,8 @@ Status: in progress (sprint planning complete, execution starting)
 ### Phase 5: Agentic Ingestion Sprint
 - **Done condition:** Enriched SemanticSnapshots that demonstrably beat vanilla LLM SQL generation on GPT-4o class models. Haiku regression root-caused and either fixed or documented. Live database profiling engine operational. "Never worse than vanilla" gate (Directive #7) passed on recommended model tier.
 - **Gate to next phase:** HITL
-- **Status:** in progress (sprint planning complete, execution starting)
-- **Notes:** Full replacement of prior "Agentic Ingestion Light" scope. The Phase 4 benchmark revealed the product gap: 10 parsers extract structural info the LLM already gets from information_schema. The ingestion layer is the product. Sprint builds: (1) Haiku regression root cause with explicit branch determination, (2) schema extensions for profiling data, (3) live database profiling engine, (4) parser deepening for dbt/LookML/ORM semantic extraction, (5) optional host-LLM classification loop, (6) benchmark validation against dirty fixture. Distribution (Phase 6) paused until this phase passes Directive #7 gate. Sprint plan: `_strategy/plans/agentic-ingestion-sprint.md`.
+- **Status:** in progress — Sprints 0/1a/2 complete, Sprint 3 (classification loop) executing
+- **Notes:** Full replacement of prior "Agentic Ingestion Light" scope. The Phase 4 benchmark revealed the product gap: 10 parsers extract structural info the LLM already gets from information_schema. The ingestion layer is the product. Sprint builds: (1) Haiku regression root cause with explicit branch determination, (2) schema extensions for profiling data, (3) live database profiling engine, (4) parser deepening for dbt/LookML/ORM semantic extraction, (5) optional host-LLM classification loop, (6) benchmark validation against dirty fixture. **Progress (2026-03-28):** Sprint 0 complete (Branch A — planner prompt, not abstraction). Sprint 1a complete (14 profiling fields, hash stability). Sprint 2 complete (profiler operational, Pagila validated: original_language_id=100% NULL, rating enum detected, FK confidence=1.0). Sprint 3 HITL gate cleared — classification prompt spec received. Distribution (Phase 6) paused until this phase passes Directive #7 gate. Sprint plan: `_strategy/plans/agentic-ingestion-sprint.md`.
 
 ### Phase 6: Distribution & Community Launch
 - **Done condition:** All 4 MCP directories submitted (Smithery, PulseMCP, mcp.so, Glama). JetBrains ACP Registry submitted. Null Trap essay posted to HN. Cross-posted to r/dataengineering, r/database, Dev.to. dbt Slack #tools intro. 3-4 social posts (Twitter/X, Bluesky, LinkedIn).

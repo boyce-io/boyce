@@ -2,7 +2,7 @@
 
 **Created:** 2026-03-28
 **Phase:** Phase 5 (ROADMAP.md)
-**Status:** Sprint 0 COMPLETE (Branch A). Sprint 1a next.
+**Status:** Sprints 0, 1a, 2 COMPLETE. Sprint 3 HITL gate cleared, execution starting.
 **Priority order:** Profiling > parsers (standing order, CM MASTER.md)
 
 ---
@@ -114,22 +114,86 @@ parallelism.
 
 ---
 
-## Sprint 3 — Parser Deepening + Host-LLM Classification
+## Sprint 3 — Host-LLM Classification Loop (enrich_snapshot)
 
-Two parallel tracks:
+**Status:** HITL gate cleared (2026-03-28). Execution starting.
+**Deliverable:** New MCP tool `enrich_snapshot` + `enrichment.py` module.
 
-**Track A — Parser deepening:** Extract semantic information that parsers
-currently ignore: dbt descriptions/metrics/tests, LookML measures/explores,
-ORM help_text/choices. This is breadth work for distribution — validates
-against separate fixtures, not the benchmark pipeline.
+### Scope
 
-**Track B — Host-LLM classification loop:** Optional, zero-config semantic
-enrichment via the MCP host's LLM. `ingest_source` returns
-`classification_needed` payload; host LLM classifies; `enrich_snapshot` stores
-results. Zero API keys required on Boyce's side.
+**Job 1 — Enum interpretation (PRIMARY):** Profiled sample_values → host LLM
+interprets what they mean (e.g. `['A','C','S','P']` → Active, Cancelled,
+Suspended, Pending). Stored in `FieldDef.business_description`.
 
-**Gated by Sprint 0:** If Branch B, sprint pauses here for StructuredFilter
-simplification before proceeding.
+**Job 2 — NULL interpretation (SECONDARY):** Majority-NULL columns → host LLM
+infers whether deprecated, optional, or data quality issue. Readable bonus on
+top of the already-critical `null_rate` signal.
+
+**Job 3 — Cross-table disambiguation:** DEFERRED. FK health scoring already
+measures actual match rates.
+
+### Classification Trigger
+
+Column enters classification payload if ANY of:
+- `sample_values` is populated (distinct_count ≤ 25)
+- `null_rate > 0.5` (majority-NULL column)
+
+### Two-Round MCP Flow
+
+**Round 1 — Request:** `enrich_snapshot(snapshot_name)` → generates per-entity
+classification prompts from profiling data → returns `classification_needed:
+true` with prompts for host LLM to run.
+
+**Round 2 — Store:** `enrich_snapshot(snapshot_name, classifications={...})` →
+stores `business_description` into snapshot FieldDef entries → persists.
+
+If no classifiable columns → `classification_needed: false` (no Round 2).
+If host LLM skips Round 2 → no harm, snapshot unchanged.
+If malformed JSON → skip and log, no error surfaced.
+
+### Prompt Template (per entity)
+
+```
+Table: {entity_name}
+{entity_description if available}
+
+The following columns have characteristics that benefit from interpretation.
+For each column, provide a brief business description based on the column name,
+data type, table context, and any sample values shown.
+
+- {column_name} ({data_type}, {null_rate_pct}% null, {distinct_count} distinct values)
+  Values: {sample_values}
+
+Respond with JSON only:
+{"columns": {"{column_name}": {"business_description": "...", "value_meanings": {...} or null}}}
+```
+
+**Response parsing:** `business_description` → `FieldDef.business_description`.
+If `value_meanings` provided, format as readable string (e.g. "A=Active,
+C=Cancelled") and append to business_description. No new schema fields.
+
+### Hard Constraint: enrich_snapshot Is Optional
+
+Product delivers full value with profiling data alone. Enrichment adds
+human-readable descriptions. The planner can use raw `sample_values` without
+knowing what they mean.
+
+### What Sprint 3 Does NOT Include
+- No planner prompt changes (that's Sprint 4 / benchmark validation)
+- No cross-table disambiguation (Job 3, deferred)
+- No retry logic (classification is best-effort)
+- No new schema fields (uses Sprint 1a's existing `business_description`)
+
+### Parser Deepening (Sprint 1b/c/d) — Parallel, Lower Priority
+
+**Track A (dbt):** Extract descriptions, test assertions → business_description,
+business_rules. Test against jaffle_shop.
+
+**Track B (LookML):** Extract dimension descriptions, measure SQL, explore joins.
+Test against thelook.
+
+**Track C (ORMs):** Django help_text → business_description, choices →
+sample_values. SQLAlchemy docstrings. Prisma `///` comments.
 
 ---
 
