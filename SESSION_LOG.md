@@ -148,6 +148,37 @@
 
 ---
 
+## 2026-03-28 — Phase 5: Agentic Ingestion Sprint (Sprint 0 + Sprint 1a)
+
+**Accomplishments:**
+- Sprint 0: Haiku regression root cause diagnosed — Branch A confirmed
+  - Diagnostic script (sprint0_diagnosis.py) runs stripped StructuredFilter benchmark
+  - Stripped mode scores 2.50 vs full 3.42 vs vanilla 3.83 — stripping makes it WORSE
+  - Join correctness identical (83%) in both stripped and full — entity selection not improved
+  - Conclusion: Haiku fails at metrics/dimensions categorization, not abstraction complexity
+  - Three specific failure patterns: join keys in dimension slots (Q02), wrong metric column (Q05), missing dimensions entirely (Q06)
+  - Deliverable: `_strategy/research/sprint0-haiku-diagnosis.md`
+- Sprint 1a: Schema extensions (types.py, validation.py, parsers/base.py)
+  - FieldDef: null_rate, distinct_count, sample_values, business_description, business_rules
+  - Entity: object_type, row_count, view_sql, view_lineage
+  - JoinDef: join_confidence, orphan_rate
+  - SemanticSnapshot: profiled_at
+  - canonicalize_snapshot_for_hash() is single source of truth for hash exclusions
+  - 16 new tests — 481 total pass, 6 skipped
+- 1 commit pushed to main (24bd30a)
+
+**Incomplete:**
+- Sprint 2: Live database profiling engine (next)
+- Sprint 1b/c/d: Parser deepening (parallel, lower priority)
+
+**Next step:** Build `boyce/src/boyce/profiler.py` — Sprint 2 (critical path).
+**Gate status:** Agent-gated
+
+**Proposed amendments:**
+- None
+
+---
+
 ## 2026-03-27 — Phase 5: Agentic Ingestion Light
 
 **Accomplishments:**
