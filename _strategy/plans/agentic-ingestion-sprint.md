@@ -84,14 +84,33 @@ tests pass.
 
 ---
 
-## Sprint 2 — Live Database Profiling Engine
+## Sprint 2 — Live Database Profiling Engine — COMPLETE
 
-Build the profiling engine that connects to a live database and populates the
-schema extensions from Sprint 1. Core signals: NULL rates per column, enum
-value distributions, FK health (orphaned records), row counts, view lineage.
+**Status:** COMPLETE (2026-03-28).
+**Deliverable:** `boyce/src/boyce/profiler.py` — `profile_snapshot(adapter, snapshot)`
 
-**This is the critical path.** Per standing priority order (CM MASTER.md),
-profiling wins over parser deepening if capacity conflicts arise.
+**API:** Takes connected PostgresAdapter + SemanticSnapshot → new enriched
+SemanticSnapshot. Sequential execution (asyncpg single-connection constraint).
+
+**Signals profiled:**
+- Row counts per entity (SELECT COUNT(*))
+- NULL rates per column (COUNT(*) - COUNT(col)) / COUNT(*))
+- Enum detection: columns with distinct_count ≤ 25 get sample_values populated
+- Object type detection via information_schema.tables
+- FK confidence + orphan_rate per join (LEFT JOIN match-rate query)
+
+**Validation results against Pagila:**
+- original_language_id null_rate = 1.0 ✓ (Opus smoke test passed)
+- film.rating sample_values = ['G', 'NC-17', 'PG', 'PG-13', 'R'] ✓
+- All Pagila FK joins: confidence=1.0, orphan_rate=0.0 ✓
+- snapshot_id preserved across profile runs ✓
+
+**Key design note:** Sequential execution required because asyncpg's single
+connection does not support concurrent operations (`asyncio.gather` causes
+"another operation is in progress"). Future pool-based adapter could enable
+parallelism.
+
+**Tests:** 32 tests (24 unit, 8 Pagila integration). 513 total pass.
 
 ---
 

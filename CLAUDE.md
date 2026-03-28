@@ -257,6 +257,7 @@ The contract between `QueryPlanner` (output) and `kernel.process_request` (input
 | Snapshot persistence | `store.py` — `SnapshotStore` (`_local_context/` JSON files) |
 | Business definitions | `store.py` — `DefinitionStore` (`_local_context/` JSON files) |
 | Validation + hashing | `validation.py` — `validate_snapshot()`, `_compute_snapshot_hash()`, `canonicalize_snapshot_for_hash()` (single source of truth for hash exclusions) |
+| **Live profiler** | `profiler.py` — `profile_snapshot(adapter, snapshot)` → enriched SemanticSnapshot. Sequential (asyncpg single-connection). Profiles: row counts, NULL rates, enum detection (≤25 distinct), object types, FK confidence + orphan rates. |
 | Audit log | `audit.py` — `AuditLog` (append-only JSONL) |
 
 ### MCP Tools (8)
@@ -289,6 +290,7 @@ Note: `build_sql` and `solve_path` are internal functions (not MCP tools). Host 
 | `tests/test_doctor.py` | Doctor checks: version, editors, database, snapshots, sources, server, orchestrator, JSON output (20 tests) |
 | `tests/test_version_check.py` | Version lifecycle: PyPI fetch, disk cache, classify update, stale-process, install detection, cooldown, nudge filtering, run_update (37 tests) |
 | `tests/test_sprint1a_schema_extensions.py` | Sprint 1a: profiling field defaults, values, hash exclusion invariants, build→validate round-trip (16 tests) |
+| `tests/test_profiler.py` | Sprint 2: identifier safety, apply_profiles logic, profile_snapshot() unit (mocked), Pagila integration — original_language_id=100% NULL smoke test (32 tests, 8 integration) |
 | `tests/live_fire/run_mission.py` | Full pipeline: Docker Postgres + LLM + EXPLAIN |
 | `demo/magic_moment/verify_demo.py` | Demo smoke test — NULL Trap distribution check |
 | `quickstart.sh` | Dev setup: install, `.env` template, verify_eyes |

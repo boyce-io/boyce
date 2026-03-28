@@ -171,8 +171,41 @@
 - Sprint 2: Live database profiling engine (next)
 - Sprint 1b/c/d: Parser deepening (parallel, lower priority)
 
-**Next step:** Build `boyce/src/boyce/profiler.py` — Sprint 2 (critical path).
-**Gate status:** Agent-gated
+**Next step:** Build `boyce/src/boyce/profiler.py` — Sprint 2 (critical path). DONE — see next entry.
+**Gate status:** Agent-gated (continued in same session)
+
+**Proposed amendments:**
+- None
+
+---
+
+## 2026-03-28 — Phase 5: Agentic Ingestion Sprint (Sprint 2 — Profiling Engine)
+
+**Accomplishments:**
+- Built `boyce/src/boyce/profiler.py` — `profile_snapshot(adapter, snapshot) → SemanticSnapshot`
+  - Row counts per entity (SELECT COUNT(*))
+  - NULL rates per column — one batch query per entity, not N round-trips
+  - Enum detection: columns with distinct_count ≤ 25 → sample_values
+  - Object type detection via information_schema.tables
+  - FK confidence + orphan_rate via LEFT JOIN match-rate query (Redshift-compatible)
+  - Sequential execution (asyncpg single-connection, no asyncio.gather)
+  - snapshot_id preserved: profiling fields excluded by canonicalize_snapshot_for_hash()
+- All Opus smoke tests passed on Pagila:
+  - original_language_id null_rate = 1.0 ✓ (THE smoke test)
+  - film.rating sample_values = ['G', 'NC-17', 'PG', 'PG-13', 'R'] ✓
+  - All FK joins: confidence=1.0, orphan_rate=0.0 ✓
+- 32 new tests (test_profiler.py): 24 unit (mocked adapter), 8 Pagila integration
+- 513 total tests pass, 6 skipped (unchanged)
+- 2 commits pushed (24bd30a Sprint 0+1a, c8042a8 session log)
+
+**Incomplete:**
+- Sprint 1b/c/d: Parser deepening (parallel, lower priority)
+- Sprint 3: Host-LLM classification loop (HITL-gated)
+- Sprint 4: Benchmark validation against dirty fixture
+
+**Next step:** Sprint 3 (HITL-gated — awaiting Will + Opus classification prompt spec).
+Meanwhile Sprint 1b/c/d parser deepening available as parallel work.
+**Gate status:** HITL-gated (Sprint 3 classification prompt)
 
 **Proposed amendments:**
 - None
