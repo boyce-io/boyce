@@ -1,6 +1,6 @@
 # Boyce — Master Directive
 **This is the single source of truth for planning and execution.**
-**Last updated:** 2026-03-23
+**Last updated:** 2026-03-28
 **All other planning documents are subordinate to this file.**
 **Product name:** Boyce — named for [Raymond F. Boyce](https://en.wikipedia.org/wiki/Raymond_F._Boyce), co-inventor of SQL (1974)
 **Domain:** boyce.io (purchased 2026-03-04)
@@ -273,6 +273,18 @@ The Null Trap essay is first. More follow the same pattern. The protocol wins by
 Adoption comes from visibility. Visibility comes from stories that make data engineers say
 "I need this."
 
+### 7. Never Worse Than Vanilla (Directive #7, 2026-03-28)
+Boyce must never systematically underperform a vanilla LLM on any query class or model tier.
+If the StructuredFilter abstraction imposes a cognitive tax on a model, that is a Boyce bug,
+not a model limitation. **Testing protocol:** Recommended tier (GPT-4o class) must match or beat
+vanilla on every query category with advantage on 3+. Budget tier (Haiku): systematic regression
+is a P1 bug, not a ship blocker. Every model tested in the benchmark must pass this gate.
+
+**First known violation (2026-03-27):** Haiku 3.42 with Boyce vs 3.83 without. Root-caused
+(2026-03-28, Sprint 0): Branch A — planner prompt quality, not abstraction overhead. Stripped
+StructuredFilter scored WORSE (2.50). Fix path: prompt engineering per model tier, not
+architectural simplification.
+
 ---
 
 ## Execution Plan (Compressed Timeline)
@@ -284,8 +296,9 @@ Adoption comes from visibility. Visibility comes from stories that make data eng
 - GitHub org: https://github.com/boyce-io
 - Domain: boyce.io
 
-### Block 1 — Ship It [ACTIVE]
+### Block 1 — Ship It [COMPLETE]
 **Goal:** Published on PyPI, deployed on a real warehouse, discoverable by agents and developers.
+**Status:** v0.1.0 published to PyPI (2026-03-24). 513 tests. 7 platforms. StructuredFilter v0.2. Phase 4 benchmark complete. Phase 5 (Agentic Ingestion Sprint) in progress. Distribution (Phase 6) paused pending sprint completion.
 
 See `_strategy/plans/block-1-ship-it.md` for detailed plan.
 
@@ -446,10 +459,23 @@ PyPI. Second publication after Null Trap.
 - [ ] Document full telemetry intent in `_strategy/plans/telemetry-design.md`
 - [ ] Plan doc: `_strategy/plans/telemetry-design.md`
 
-**Stage 5 — Platform Expansion (CC, weeks 1-2 post-publish)**
-- [ ] Add Codex config.toml support to `boyce init` wizard
+**Stage 5 — Platform Expansion [COMPLETE — Phase 3, 2026-03-27]**
+- [x] Add Codex config.toml support to `boyce init` wizard
 - [ ] DataGrip-optimized demo content (DBA, data analyst, analytics engineer personas)
 - [ ] Update convergentmethods.com/boyce/docs/ with DataGrip + Codex platform pages
+
+**Phase 4 — Preliminary Benchmark [COMPLETE — 2026-03-27]**
+12 Pagila queries, 3 models (gpt-4o-mini, gpt-4o, haiku-4-5). Mode A ties or trails Mode B
+on clean schemas. Null trap (Q08) confirmed: Boyce LEFT JOIN → 1,000 rows, vanilla INNER JOIN → 0.
+9 bugs fixed in Phase 4b (BUG-A through BUG-I). StructuredFilter v0.2. Results:
+`_strategy/research/preliminary-benchmark-v2.json`, `preliminary-benchmark-gpt4o.json`, `preliminary-benchmark-haiku.json`.
+
+**Phase 5 — Agentic Ingestion Sprint [IN PROGRESS — 2026-03-28]**
+CEO directive: the ingestion layer IS the product. Phase 4 benchmark proved the gap — 10 parsers
+extract the same info as information_schema. Sprint builds: schema extensions (14 profiling fields),
+live database profiler (operational on Pagila), host-LLM classification loop, benchmark validation.
+Sprint progress: 0/1a/2 complete, Sprint 3 executing, Sprint 4 pending.
+Sprint plan: `_strategy/plans/agentic-ingestion-sprint.md`.
 
 **DataGrip / JetBrains — Landscape Assessment (2026-03-21)**
 

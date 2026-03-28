@@ -10,9 +10,10 @@
 Boyce is a privacy-first SQL compiler and open semantic protocol (SemanticSnapshot) exposed as an MCP server. MIT-licensed engine, monetizable experience layer (IDE extensions, hosted service). Named for Raymond F. Boyce, co-inventor of SQL. The thesis: AI agents are the primary consumers of developer tools, and the interface between agents and databases is a behavioral design problem, not just an engineering one. Open protocols win adoption; monetize the experience layer.
 
 ## Current State
-- **Phase:** Phase 5 — Agentic Ingestion Sprint (in progress, sprint planning complete)
-- **Status:** v0.1.0 on PyPI. 465 tests. Phase 4b benchmark complete. StructuredFilter v0.2.
-- **Active work:** Agentic Ingestion Sprint — the ingestion layer is the product. Distribution (Phase 6) paused until sprint passes Directive #7 gate.
+- **Phase:** Phase 5 — Agentic Ingestion Sprint (in progress)
+- **Status:** v0.1.0 on PyPI. 513 tests. Sprint 0/1a/2 complete. Sprint 3 (classification loop) executing.
+- **Active work:** Sprint 3 — enrich_snapshot MCP tool (host-LLM classification loop). Distribution (Phase 6) paused until sprint passes Directive #7 gate.
+- **Sprint progress:** Haiku regression root-caused (Branch A — planner prompt, not abstraction). Schema extended with 14 profiling fields. Profiler operational on Pagila (original_language_id=100% NULL confirmed, rating enum detected, all FK confidence=1.0). Sprint 4 (benchmark validation) pending after Sprint 3.
 
 ## Recent Decisions
 - 2026-03-28: **Strategic reframe — Agentic Ingestion Sprint.** Phase 4 benchmark showed Boyce ties vanilla LLM on clean schemas. 10 parsers extract the same info as information_schema. The ingestion layer IS the product gap. Phase 5 replaced with full sprint: Haiku regression root cause → schema extensions → live database profiling → parser deepening → host-LLM classification → benchmark validation. Distribution paused.
@@ -21,7 +22,7 @@ Boyce is a privacy-first SQL compiler and open semantic protocol (SemanticSnapsh
 - 2026-03-27 (Phase 4b): 9 bugs fixed. Benchmark v2: Mode A 3.5/4, row count 100%, EXPLAIN 100%. StructuredFilter v0.2 adds order_by, limit, expressions.
 
 ## Open Questions
-- **Sprint 0 Branch A vs B:** Is Haiku regression caused by prompt/validation issues (fixable, sprint continues) or StructuredFilter cognitive tax (needs simplification pass before enrichment)? Diagnostic test defined in sprint plan.
+- ~~Sprint 0 Branch A vs B~~ — **ANSWERED (2026-03-28):** Branch A confirmed. Haiku fails at metrics/dimensions categorization in the planner prompt, not StructuredFilter complexity. Stripped StructuredFilter scored WORSE (2.50 vs 3.42). Sprint continues without simplification pass.
 - Non-terminal user TAM: does the market of non-CLI users change delivery surface priority?
 - VS Code extension: free-only or free + pro tier from day one?
 - Ingest architecture question ANSWERED (2026-03-28): deterministic parsing + live profiling + host-LLM semantic interpretation. The model-compensation layer stays thin but exists.
