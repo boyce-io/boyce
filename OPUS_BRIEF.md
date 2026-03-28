@@ -3,27 +3,28 @@
 > Strategic briefing for Opus (claude.ai) planning sessions.
 > CC updates this at the end of every execution session.
 > Will uploads this when starting a new Opus chat.
-> **Last updated:** 2026-03-27
+> **Last updated:** 2026-03-28
 
 ## Project Summary
 
 Boyce is a privacy-first SQL compiler and open semantic protocol (SemanticSnapshot) exposed as an MCP server. MIT-licensed engine, monetizable experience layer (IDE extensions, hosted service). Named for Raymond F. Boyce, co-inventor of SQL. The thesis: AI agents are the primary consumers of developer tools, and the interface between agents and databases is a behavioral design problem, not just an engineering one. Open protocols win adoption; monetize the experience layer.
 
 ## Current State
-- **Phase:** Phase 4 — Preliminary Benchmark COMPLETE. Next: Phase 5 (Agentic Ingestion Light)
-- **Status:** v0.1.0 on PyPI. 465 tests. Phase 4b benchmark bug fix pass complete. StructuredFilter v0.2.
-- **Active work:** Phase 5 — Agentic Ingestion Light (agent-gated). HITL gate before Phase 6 (Distribution).
+- **Phase:** Phase 5 — Agentic Ingestion Sprint (in progress, sprint planning complete)
+- **Status:** v0.1.0 on PyPI. 465 tests. Phase 4b benchmark complete. StructuredFilter v0.2.
+- **Active work:** Agentic Ingestion Sprint — the ingestion layer is the product. Distribution (Phase 6) paused until sprint passes Directive #7 gate.
 
 ## Recent Decisions
-- 2026-03-27 (Phase 4b): 9 bugs fixed in one pass. Benchmark v2: Mode A 3.5/4 (up from 2.33), row count 100% (up from 33%). Distribution copy number confirmed: Boyce LEFT JOIN returns 1,000 rows vs direct LLM INNER JOIN returns 0 on null-trap column. StructuredFilter v0.2 adds order_by, limit, expressions.
-- 2026-03-27: Roadmap resequenced — Phases 3-5 (Platform Expansion, Preliminary Benchmark, Agentic Ingestion Light) execute before distribution.
-- 2026-03-24: Terminology refresh — SQL Compiler/Database Inspector/Query Verification. v0.1.0 published. Cursor test passed.
-- 2026-03-24: Cursor cross-platform test passed (6/6). Init wizard fix: platform-specific restart instructions.
+- 2026-03-28: **Strategic reframe — Agentic Ingestion Sprint.** Phase 4 benchmark showed Boyce ties vanilla LLM on clean schemas. 10 parsers extract the same info as information_schema. The ingestion layer IS the product gap. Phase 5 replaced with full sprint: Haiku regression root cause → schema extensions → live database profiling → parser deepening → host-LLM classification → benchmark validation. Distribution paused.
+- 2026-03-28: **Directive #7 precision update.** Recommended tier (GPT-4o class): match or beat vanilla on every category, advantage on 3+. Budget tier (Haiku): systematic regression is P1 bug, not ship blocker. Dirty fixture required in benchmark.
+- 2026-03-28: **Priority order.** Live database profiling is critical path. Parser deepening is parallel breadth work. Profiling wins if conflicts arise.
+- 2026-03-27 (Phase 4b): 9 bugs fixed. Benchmark v2: Mode A 3.5/4, row count 100%, EXPLAIN 100%. StructuredFilter v0.2 adds order_by, limit, expressions.
 
 ## Open Questions
-- Ingest architecture: deterministic parsing alone may not handle real-world schema diversity. LLM-assisted semantic interpretation may be needed. Evaluate after Tier 2 testing.
+- **Sprint 0 Branch A vs B:** Is Haiku regression caused by prompt/validation issues (fixable, sprint continues) or StructuredFilter cognitive tax (needs simplification pass before enrichment)? Diagnostic test defined in sprint plan.
 - Non-terminal user TAM: does the market of non-CLI users change delivery surface priority?
 - VS Code extension: free-only or free + pro tier from day one?
+- Ingest architecture question ANSWERED (2026-03-28): deterministic parsing + live profiling + host-LLM semantic interpretation. The model-compensation layer stays thin but exists.
 
 ## Blocked Items
 - will@boyce.io email: domain transfer in progress (Dynadot to Namecheap).

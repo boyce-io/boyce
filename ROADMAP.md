@@ -4,8 +4,8 @@
 > Will authors phases and gate types. CC maintains status and proposes amendments.
 
 ## Current Phase
-Phase: Phase 5 — Agentic Ingestion Light (pre-distribution)
-Status: not started
+Phase: Phase 5 — Agentic Ingestion Sprint
+Status: in progress (sprint planning complete, execution starting)
 
 ## Phases
 
@@ -33,16 +33,16 @@ Status: not started
 - **Status:** complete (Phase 4 benchmark run 2026-03-27; Phase 4b bug fix pass 2026-03-27)
 - **Notes:** Phase 4b final: Mode A 3.5/4 (up from 2.33), row count 100% (up from 33%), EXPLAIN 100%, join correctness 75%. 9 bugs fixed, StructuredFilter v0.2, 465 tests. Q09 now correctly concatenates: `first_name || ' ' || last_name`. Q08 null trap confirmed: Boyce LEFT JOIN returns 1,000 rows vs direct LLM INNER JOIN returns 0. Distribution copy number stands. Known gap: HAVING clause (deferred — no benchmark query exercises it).
 
-### Phase 5: Agentic Ingestion — Light (pre-distribution)
-- **Done condition:** `Entity.object_type` detection (table/view/materialized_view). Broader object introspection (views, materialized views). `ingest_source` returns `classification_needed` payload with human-readable descriptions of columns that benefit from semantic classification. Get_schema surfaces object types.
+### Phase 5: Agentic Ingestion Sprint
+- **Done condition:** Enriched SemanticSnapshots that demonstrably beat vanilla LLM SQL generation on GPT-4o class models. Haiku regression root-caused and either fixed or documented. Live database profiling engine operational. "Never worse than vanilla" gate (Directive #7) passed on recommended model tier.
 - **Gate to next phase:** HITL
-- **Status:** not started
-- **Notes:** First half of original Phase 10, split to get "agentic ingestion" into distribution copy. The `classification_needed` payload is useful even without `enrich_snapshot` — the host LLM can report recommendations to the user. `enrich_snapshot`, ingest-time profiling, drift detection, and Protocol v0.2 remain in Phase 10b. ~1-2 days Opus+Sonnet work. HITL because it extends the public MCP tool contract.
+- **Status:** in progress (sprint planning complete, execution starting)
+- **Notes:** Full replacement of prior "Agentic Ingestion Light" scope. The Phase 4 benchmark revealed the product gap: 10 parsers extract structural info the LLM already gets from information_schema. The ingestion layer is the product. Sprint builds: (1) Haiku regression root cause with explicit branch determination, (2) schema extensions for profiling data, (3) live database profiling engine, (4) parser deepening for dbt/LookML/ORM semantic extraction, (5) optional host-LLM classification loop, (6) benchmark validation against dirty fixture. Distribution (Phase 6) paused until this phase passes Directive #7 gate. Sprint plan: `_strategy/plans/agentic-ingestion-sprint.md`.
 
 ### Phase 6: Distribution & Community Launch
 - **Done condition:** All 4 MCP directories submitted (Smithery, PulseMCP, mcp.so, Glama). JetBrains ACP Registry submitted. Null Trap essay posted to HN. Cross-posted to r/dataengineering, r/database, Dev.to. dbt Slack #tools intro. 3-4 social posts (Twitter/X, Bluesky, LinkedIn).
 - **Gate to next phase:** HITL
-- **Status:** not started
+- **Status:** not started — **BLOCKED on Phase 5** (Agentic Ingestion Sprint must complete and pass Directive #7 "never worse than vanilla" gate before distribution proceeds)
 - **Notes:** Predominantly Will-executed. CC drafts, Will posts. NOW launches with: 7 platforms, null trap anecdote (1,000 vs 0 rows), agentic ingestion in feature list, refreshed terminology (SQL Compiler, Database Inspector, Query Verification). Aggregate benchmark scores NOT for distribution (Boyce ties direct LLM on clean schemas — misleading as "accuracy improvement"). Content pre-drafted in `_strategy/mcp-directory-submissions.md`. Social post themes in MASTER.md. Terminology refreshed 2026-03-24. After publish, file USPTO trademark application for "Boyce" (~$250, TEAS Plus).
 
 ### Phase 7: Post-Publish Audit
