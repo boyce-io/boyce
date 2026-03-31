@@ -328,4 +328,4 @@ boyce/                          ← PRIMARY — headless FastMCP server + pip pa
 
 ---
 
-*Copyright 2026 Convergent Methods. MIT License.*
+*Copyright 2026 Convergent Methods, LLC. MIT License.*
