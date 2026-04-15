@@ -1,0 +1,73 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.boyce-io/boyce",
+  "title": "Boyce",
+  "description": "Deterministic SQL compiler for AI agents. MCP server that profiles schemas for NULL traps and distributional surprises before queries run, then compiles deterministic SQL from structured intent — zero LLM in the generation step.\n\n*Named for Raymond F. Boyce, co-inventor of SQL (1974) and co-author of Boyce-Codd Normal Form.*",
+  "version": "0.1.0",
+  "websiteUrl": "https://convergentmethods.com/boyce/",
+  "repository": {
+    "url": "https://github.com/boyce-io/boyce",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "boyce",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "BOYCE_DB_URL",
+          "description": "PostgreSQL or Redshift connection string. Optional — tools work without live DB; required for live profiling and EXPLAIN pre-flight.",
+          "isRequired": false
+        },
+        {
+          "name": "BOYCE_PROVIDER",
+          "description": "LLM provider for the NL→StructuredFilter planner (anthropic, openai). MCP hosts using their own model should not set this — the host's model does the reasoning and Boyce receives a pre-built StructuredFilter.",
+          "isRequired": false
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "description": "Required only when BOYCE_PROVIDER=anthropic and the host does not supply its own model. MCP hosts (Claude Desktop, Cursor, Claude Code, Codex, Cline, Windsurf, JetBrains) do not need this.",
+          "isRequired": false
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "com.convergentmethods": {
+      "tagline": "Deterministic SQL compiler for AI agents. Your agent stops guessing SQL.",
+      "keywords": [
+        "sql",
+        "database",
+        "postgres",
+        "redshift",
+        "mcp",
+        "deterministic",
+        "compiler",
+        "semantic-layer",
+        "null-safety",
+        "schema"
+      ],
+      "license": "MIT",
+      "toolCount": 8,
+      "testCount": 519,
+      "categories": ["databases", "sql", "developer-tools"],
+      "tools": [
+        "ingest_source",
+        "ingest_definition",
+        "get_schema",
+        "ask_boyce",
+        "validate_sql",
+        "query_database",
+        "profile_data",
+        "check_health"
+      ],
+      "thesisEssay": "https://convergentmethods.com/boyce/null-trap/",
+      "agentDocs": "https://convergentmethods.com/boyce/llms-full.txt"
+    }
+  }
+}

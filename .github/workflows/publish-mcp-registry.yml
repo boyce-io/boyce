@@ -1,0 +1,64 @@
+name: Publish to MCP Registry
+
+# Publishes server.json to the Official MCP Registry (modelcontextprotocol/registry)
+# via GitHub OIDC namespace proof. No Will GitHub session required after initial
+# workflow approval — OIDC trust is scoped to this repository.
+#
+# Namespace claimed: io.github.boyce-io/boyce
+# Registry reference: https://github.com/modelcontextprotocol/registry
+#
+# CEO directive (2026-04-14 sess 1, turn 5): "Draft the GitHub Actions OIDC
+# workflow. Eliminating Will from the loop on registry publishing is exactly
+# the kind of automation we should be building."
+#
+# Status: DRAFT — needs:
+#   - Will's one-time approval on the Actions tab of this repo
+#   - Verification of exact mcp-publisher release asset URL and CLI flags
+#     (published at https://github.com/modelcontextprotocol/registry/releases)
+#   - Confirmation the id-token: write permission is sufficient for the
+#     registry's OIDC audience (may need specific `audience:` parameter)
+
+on:
+  # Auto-publish when server.json changes on main.
+  push:
+    branches: [main]
+    paths:
+      - server.json
+  # Manual trigger for ad-hoc republish.
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Required for GitHub OIDC → registry namespace proof.
+  contents: read    # Checkout only; never write back.
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          # Pin to a specific release tag once we confirm stability.
+          # Currently tracking latest release off the registry repo.
+          curl -sSL \
+            "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin mcp-publisher
+          chmod +x /usr/local/bin/mcp-publisher
+          mcp-publisher --version
+
+      - name: Validate server.json
+        run: |
+          # Schema validation before attempting publish.
+          mcp-publisher validate server.json
+
+      - name: Authenticate via GitHub OIDC
+        run: |
+          # OIDC login proves this workflow runs under the boyce-io/boyce
+          # repository, which anchors the io.github.boyce-io/* namespace.
+          mcp-publisher login github-oidc
+
+      - name: Publish server.json
+        run: |
+          mcp-publisher publish server.json
