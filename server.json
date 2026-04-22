@@ -3,7 +3,7 @@
   "name": "io.github.boyce-io/boyce",
   "title": "Boyce",
   "description": "Deterministic SQL compiler for AI agents. Your agent stops guessing SQL.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "websiteUrl": "https://convergentmethods.com/boyce/",
   "repository": {
     "url": "https://github.com/boyce-io/boyce",
@@ -14,7 +14,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "boyce",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": {
         "type": "stdio"
       },
