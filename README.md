@@ -1,5 +1,7 @@
 # Boyce: Semantic Protocol & Safety Layer for Agentic Database Workflows
 
+<!-- mcp-name: io.github.boyce-io/boyce -->
+
 > **The semantic safety layer for agentic database workflows.**
 > Boyce connects LLMs to live database context with built-in safety rails.
 
